@@ -1,0 +1,7 @@
+images/testing
+images/testing_groundtruth
+images/training
+images/training_groundtruth
+
+.idea
+__pycache__
