@@ -76,6 +76,7 @@ if __name__ == '__main__':
 
     # 1. Get data
     imFolders = [im_path+i for i in os.listdir(im_path) if os.path.isdir(im_path+i)]
+    imFolders.sort()
     # testing = get_images(imFolders[0])
     # testing_gt = get_images(imFolders[1])
     image_dataset = get_images(imFolders[2])
