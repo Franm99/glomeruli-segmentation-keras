@@ -5,3 +5,5 @@ images/training_groundtruth
 
 .idea
 __pycache__
+
+*.hdf5

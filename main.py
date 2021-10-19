@@ -94,12 +94,42 @@ if __name__ == '__main__':
     plt.imshow(np.reshape(ytrain[image_number], (256, 256)), cmap='gray')
     plt.show()
 
-    # model = get_model()
+    model = get_model()
+    weights_fname = 'mitochondria_test.hdf5'
+
+    if [fname for fname in os.listdir() if fname.endswith('.hdf5')]:
+        history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=1,
+                            validation_data=(xtest, ytest), shuffle=False)
+        model.save(weights_fname)
+
+    # Evaluate the model
+    model.load_weights(weights_fname)
+
+    _, acc = model.evaluate(xtest, ytest)
+    print("Accuracy = ", (acc * 100.0), '%')
+
+    # loss = history.history['loss']
+    # val_loss = history.history['val_loss']
+    # epochs = range(1, len(loss) + 1)
+    # plt.plot(epochs, loss, 'y', label='Training_loss')
+    # plt.plot(epochs, val_loss, 'r', label='Validation loss')
+    # plt.title('Training and validation loss')
+    # plt.xlabel('Epochs')
+    # plt.ylabel('Loss')
+    # plt.legend()
+    # plt.show()
     #
-    # history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=1,
-    #                     validation_data=(xtest, ytest), shuffle=False)
+    # acc = history.history['acc']
+    # val_acc = history.history['val_acc']
     #
-    # model.save('mitochondria_test.hdf5')
+    # plt.plot(epochs, acc, 'y', label="Training_acc")
+    # plt.plot(epochs, val_acc, 'r', label="Validation_acc")
+    # plt.title("Training and validation accuracy")
+    # plt.xlabel("Epochs")
+    # plt.ylabel("Accuracy")
+    # plt.show()
+
+
 
 
 
