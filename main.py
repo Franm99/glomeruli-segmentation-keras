@@ -99,7 +99,7 @@ if __name__ == '__main__':
     weights_fname = 'mitochondria_test.hdf5'
 
     if [fname for fname in os.listdir() if fname.endswith('.hdf5')]:
-        history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=1,
+        history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=15,
                             validation_data=(xtest, ytest), shuffle=False)
         model.save(weights_fname)
 
@@ -108,6 +108,7 @@ if __name__ == '__main__':
 
     _, acc = model.evaluate(xtest, ytest)
     print("Accuracy = ", (acc * 100.0), '%')
+
 
     # loss = history.history['loss']
     # val_loss = history.history['val_loss']
@@ -129,6 +130,15 @@ if __name__ == '__main__':
     # plt.xlabel("Epochs")
     # plt.ylabel("Accuracy")
     # plt.show()
+
+    ypred = model.predict(xtest)
+    ypred_th = ypred > 0.5
+
+    intersection = np.logical_and(ytest, ypred_th)
+    union = np.logical_or(ytest, ypred_th)
+    iou_score = np.sum(intersection) / np.sum(union)
+    print("IoU score is ", iou_score)
+
 
 
 
