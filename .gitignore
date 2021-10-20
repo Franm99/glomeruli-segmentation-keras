@@ -7,3 +7,4 @@ images/training_groundtruth
 __pycache__
 
 *.hdf5
+*.png
