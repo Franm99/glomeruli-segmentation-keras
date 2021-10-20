@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.utils import normalize
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
@@ -65,11 +66,6 @@ def get_model():
 #     Y_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
 
 
-def prediction(model, image, patch_size):
-    segm_img = np.zeros(image.shape[:2]) # Array with zeros to be filled with segmented values
-    patch_num = 1
-
-
 if __name__ == '__main__':
     im_path = "images/"
     # get_images_from_tif(im_path) # Run just ONCE
@@ -93,15 +89,19 @@ if __name__ == '__main__':
     plt.imshow(np.reshape(xtrain[image_number], (256, 256)), cmap='gray')
     plt.subplot(122)
     plt.imshow(np.reshape(ytrain[image_number], (256, 256)), cmap='gray')
-    plt.show()
+    plt.savefig("sample.png")
+    plt.close()
 
     model = get_model()
     weights_fname = 'mitochondria_test.hdf5'
+    checkpointer = ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
+    callbacks = [checkpointer]
 
-    if [fname for fname in os.listdir() if fname.endswith('.hdf5')]:
+    train = True
+    if train:
         history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=15,
-                            validation_data=(xtest, ytest), shuffle=False)
-        model.save(weights_fname)
+                            validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
+        model.save('last.hdf5')
 
     # Evaluate the model
     model.load_weights(weights_fname)
@@ -109,27 +109,29 @@ if __name__ == '__main__':
     _, acc = model.evaluate(xtest, ytest)
     print("Accuracy = ", (acc * 100.0), '%')
 
+    if train:
+        loss = history.history['loss']
+        val_loss = history.history['val_loss']
+        epochs = range(1, len(loss) + 1)
+        plt.plot(epochs, loss, 'y', label='Training_loss')
+        plt.plot(epochs, val_loss, 'r', label='Validation loss')
+        plt.title('Training and validation loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.savefig("loss.png")
+        plt.close()
 
-    # loss = history.history['loss']
-    # val_loss = history.history['val_loss']
-    # epochs = range(1, len(loss) + 1)
-    # plt.plot(epochs, loss, 'y', label='Training_loss')
-    # plt.plot(epochs, val_loss, 'r', label='Validation loss')
-    # plt.title('Training and validation loss')
-    # plt.xlabel('Epochs')
-    # plt.ylabel('Loss')
-    # plt.legend()
-    # plt.show()
-    #
-    # acc = history.history['acc']
-    # val_acc = history.history['val_acc']
-    #
-    # plt.plot(epochs, acc, 'y', label="Training_acc")
-    # plt.plot(epochs, val_acc, 'r', label="Validation_acc")
-    # plt.title("Training and validation accuracy")
-    # plt.xlabel("Epochs")
-    # plt.ylabel("Accuracy")
-    # plt.show()
+        acc = history.history['acc']
+        val_acc = history.history['val_acc']
+
+        plt.plot(epochs, acc, 'y', label="Training_acc")
+        plt.plot(epochs, val_acc, 'r', label="Validation_acc")
+        plt.title("Training and validation accuracy")
+        plt.xlabel("Epochs")
+        plt.ylabel("Accuracy")
+        plt.savefig("accuracy.png")
+        plt.close()
 
     ypred = model.predict(xtest)
     ypred_th = ypred > 0.5
@@ -138,6 +140,26 @@ if __name__ == '__main__':
     union = np.logical_or(ytest, ypred_th)
     iou_score = np.sum(intersection) / np.sum(union)
     print("IoU score is ", iou_score)
+
+    test_img_number = random.randint(0, len(xtest))
+    test_img = xtest[test_img_number]
+    ground_truth = ytest[test_img_number]
+    test_img_norm = test_img[:, :, 0][:, :, None]
+    test_img_input = np.expand_dims(test_img_norm, 0)
+    prediction = (model.predict(test_img_input)[0, :, :, 0] > 0.5).astype(np.uint8)
+
+    plt.figure(figsize=(16, 8))
+    plt.subplot(131)
+    plt.title('Testing image')
+    plt.imshow(test_img[:, :, 0], cmap="gray")
+    plt.subplot(132)
+    plt.title('Testing label')
+    plt.imshow(ground_truth[:, :, 0], cmap="gray")
+    plt.subplot(133)
+    plt.title('Prediction on test image')
+    plt.imshow(prediction, cmap="gray")
+    plt.savefig("prediction.png")
+
 
 
 
