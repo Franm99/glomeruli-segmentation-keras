@@ -102,11 +102,10 @@ def get_subpatches_glomeruli(data_path: str):
 
         [h, w, _] = im.shape
         patch_num = 0
-        stride = 0
-        for x in range(0, w, patch_size_or-stride):
+        for x in range(0, w, patch_size_or):
             if x+patch_size_or >= w:
                 x = w - patch_size_or
-            for y in range(0, h, patch_size_or-stride):
+            for y in range(0, h, patch_size_or):
                 if y+patch_size_or >= h:
                     y = h - patch_size_or
                 patch = Image.fromarray(im[y:y+patch_size_or, x:x+patch_size_or, :])
