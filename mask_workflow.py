@@ -111,22 +111,23 @@ if __name__ == '__main__':
 
     # 1.3. Find tissue patches to work with and save their filenames
     ims_path = 'myImages/'
+    dest_path = 'myMasks/'
     ims_names = get_ims_path(ims_path)
 
     # 2. Get resized sub-patches for each tissue patch (loop)
     reduction_ratio = 5 # TODO: modify
-    patch_org_size = PATCH_SIZE * reduction_ratio
-    masks = []
+    patch_org_size = int(PATCH_SIZE * reduction_ratio)
+    # masks = []
     for im_name in ims_names:
         # 2.1. Using OpenCV to read images in array format
         im = cv2.cvtColor(cv2.imread(im_name, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
-        mask = get_mask(im, patch_org_size, im_format="rgb")
+        mask = get_mask(im, patch_org_size, im_format="gray")
         # TODO: save images to disk
-        masks.append(mask)
+        # masks.append(mask)
 
         # 6. Show results (end loop)
         ims = [im] + mask
-        show_ims(ims, 1, len(ims))
+        fig = show_ims(ims, 1, len(ims))
         # plt.figure()
         # plt.subplot(141)
         # plt.imshow(im)

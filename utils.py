@@ -42,7 +42,7 @@ def show_ims(imgs: List[np.array], m: Optional[int] = None, n: Optional[int] = N
     N = len(imgs)
 
     m, n = computeRowsCols(N, m, n)
-    fig = plt.figure()
+    fig = plt.figure(figsize=(12,6))
     for i in range(1, N + 1):
         plt.subplot(m, n, i)
         if len(imgs[i-1].shape) == 3:
@@ -52,4 +52,6 @@ def show_ims(imgs: List[np.array], m: Optional[int] = None, n: Optional[int] = N
         if subtitles is not None:
             plt.title(subtitles[i - 1])
     fig.suptitle(title)
-    plt.show(block=True)
+    plt.show()
+
+    return fig
