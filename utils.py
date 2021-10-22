@@ -42,15 +42,14 @@ def show_ims(imgs: List[np.array], m: Optional[int] = None, n: Optional[int] = N
     N = len(imgs)
 
     m, n = computeRowsCols(N, m, n)
-    fig = plt.figure(figsize=(m, n))
-    plt.gray()
+    fig = plt.figure()
     for i in range(1, N + 1):
-        ax = fig.add_subplot(m, n, i)
-        if len(imgs[i - 1].shape) == 2:
-            plt.imshow(imgs[i - 1])
+        plt.subplot(m, n, i)
+        if len(imgs[i-1].shape) == 3:
+            plt.imshow(imgs[i-1])
         else:
-            plt.plot(imgs[i - 1])
+            plt.imshow(imgs[i-1], cmap="gray")
         if subtitles is not None:
-            ax.set_title(subtitles[i - 1])
+            plt.title(subtitles[i - 1])
     fig.suptitle(title)
     plt.show(block=True)
