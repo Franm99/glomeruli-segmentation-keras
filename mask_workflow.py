@@ -10,7 +10,6 @@ from skimage import io
 from PIL import Image
 from typing import List
 import time
-import pandas as pd
 from utils import show_ims
 
 PATCH_SIZE = 256
@@ -30,7 +29,7 @@ def get_ims_path(ims_dir: str) -> List[str]:
     return [ims_dir + i for i in os.listdir(ims_dir) if i.endswith('.png')]
 
 
-def get_mask(img: np.array, dim: int, im_format: str = "gray") -> List[np.array]:
+def get_mask(model, img: np.array, dim: int, im_format: str = "gray") -> List[np.array]:
     """
     Returns the predicted mask for a given renal tissue patch.
     The input image can not be fed directly to the U-net model, as it has bigger dimensions than expected.
@@ -100,48 +99,25 @@ def get_channels(patch: np.array, im_format: str ="gray"):
         return [patch[:, :, i] for i in range(patch.shape[2])]
 
 
-if __name__ == '__main__':
-    # 1. Prepare workflow
-    # 1.1. Get U-Net model
+def workflow_test(wfilename, ims_path, reduction_ratio=5):
     model = get_model()
-
-    # 1.2. Load pre-trained weights
-    weights_file = 'mitochondria_test.hdf5'
-    model.load_weights(weights_file)
-
-    # 1.3. Find tissue patches to work with and save their filenames
-    ims_path = 'myImages/'
-    dest_path = 'myMasks/'
+    model.load_weights(wfilename)
     ims_names = get_ims_path(ims_path)
-
-    # 2. Get resized sub-patches for each tissue patch (loop)
-    reduction_ratio = 5 # TODO: modify
     patch_org_size = int(PATCH_SIZE * reduction_ratio)
-    # masks = []
     for im_name in ims_names:
         # 2.1. Using OpenCV to read images in array format
         im = cv2.cvtColor(cv2.imread(im_name, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
-        mask = get_mask(im, patch_org_size, im_format="gray")
+        mask = get_mask(model, im, patch_org_size, im_format="rgb")
         # TODO: save images to disk
-        # masks.append(mask)
-
         # 6. Show results (end loop)
         ims = [im] + mask
         fig = show_ims(ims, 1, len(ims))
-        # plt.figure()
-        # plt.subplot(141)
-        # plt.imshow(im)
-        # plt.title("Original")
-        # plt.subplot(142)
-        # plt.imshow(mask[0], cmap="gray")
-        # plt.title("H")
-        # plt.subplot(143)
-        # plt.imshow(mask[1], cmap="gray")
-        # plt.title("S")
-        # plt.subplot(144)
-        # plt.imshow(mask[2], cmap="gray")
-        # plt.title("V")
-        # plt.show()
-        # plt.close()
+
+
+# if __name__ == '__main__':
+#     model = get_model()
+#     weights_file = 'mitochondria_test.hdf5'
+#     ims_path = 'myImages/'
+#     workflow_test(model, weights_file, ims_path)
 
 
