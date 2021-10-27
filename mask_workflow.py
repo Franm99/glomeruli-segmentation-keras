@@ -1,15 +1,9 @@
 from unet_model import unet_model
-import cv2
+import cv2.cv2 as cv2
 import numpy as np
 from tensorflow.keras.utils import normalize
-import matplotlib.pyplot as plt
 import os
-import random
-from tqdm import tqdm
-from skimage import io
-from PIL import Image
 from typing import List
-import time
 from utils import show_ims
 
 PATCH_SIZE = 256
