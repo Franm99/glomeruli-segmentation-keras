@@ -92,8 +92,8 @@ class Dataset():
                     patch_mask = patch_mask.resize((_PATCH_SIZE, _PATCH_SIZE))
                     self.masks.append(np.asarray(patch_mask))
         # show_ims(random.sample(self.ims, 6))
-        print("Normalizing patches for U-Net input...")
         self._normalize()
+        print("Dataset size: {}".format(len(self.ims)))
 
     @staticmethod
     def _filter(patch: np.ndarray) -> bool:
@@ -125,13 +125,18 @@ class Dataset():
         """
         return train_test_split(self.ims, self.masks, test_size=ratio)
 
+    def __len__(self):
+        return len(self.ims)
+
+    def __getitem__(self, idx):
+        return self.ims[idx], self.masks[idx]
 
 # Testing
-# if __name__ == '__main__':
-#     dataset = Dataset()
-#     dataset.load(limit_samples=0.03)
-#     dataset.gen_subpatches(rz_ratio=5)
-#     xtrain, xtest, ytrain, ytest = dataset.split()
-#     print("Training size:", len(xtrain))
-#     print("Test size:", len(xtest))
+if __name__ == '__main__':
+    dataset = Dataset()
+    dataset.load(limit_samples=0.03)
+    dataset.gen_subpatches(rz_ratio=5)
+    xtrain, xtest, ytrain, ytest = dataset.split()
+    print("Training size:", len(xtrain))
+    print("Test size:", len(xtest))
 
