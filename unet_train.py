@@ -1,5 +1,5 @@
 from unet_model import unet_model
-import cv2
+import cv2.cv2 as cv2
 import numpy as np
 from tensorflow.keras.utils import normalize
 from tensorflow.keras.callbacks import ModelCheckpoint
@@ -8,12 +8,13 @@ import os
 import random
 from sklearn.model_selection import train_test_split
 
-patch_size = 256
+PATCH_SIZE = 256
 mask_dataset = []
+_DATASET_PATH = "D:/DataFlomeruli"
 
 
 def get_model():
-    return unet_model(patch_size, patch_size, 1)
+    return unet_model(PATCH_SIZE, PATCH_SIZE, 1)
 
 
 def get_images(imsPath: str):

@@ -3,3 +3,7 @@ __pycache__
 
 *.hdf5
 *.png
+
+source_test.py
+unet_train.py
+mask_workflow.py

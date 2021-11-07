@@ -5,7 +5,7 @@ from PIL import Image
 from mask_workflow import workflow_test
 
 patch_size = 256
-
+# TODO: Specify path to my own dataset (D:/)
 
 def get_subpatches_glomeruli(data_path: str):
     dataNames = [i for i in os.listdir(data_path) if i.endswith('.png')]
