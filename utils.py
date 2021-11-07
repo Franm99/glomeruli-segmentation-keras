@@ -2,6 +2,19 @@ import matplotlib.pyplot as plt
 from typing import List, Tuple, Optional
 import numpy as np
 import math
+import time
+
+
+def timer(f):
+    """ Timer decorator to wrap and measure a function time performance."""
+    def time_dec(*args, **kw):
+        ts = time.time()
+        result = f(*args, **kw)
+        te = time.time()
+
+        print("I: {} - {:2.4f} sec".format(f.__name__, te-ts))
+        return result
+    return time_dec
 
 
 def computeRowsCols(N : int, m : int, n : int) -> Tuple[int, int]:
@@ -55,3 +68,22 @@ def show_ims(imgs: List[np.array], m: Optional[int] = None, n: Optional[int] = N
     plt.show()
 
     return fig
+
+
+# Testing
+# if __name__ == '__main__':
+#     @timer
+#     def test():
+#         for i in range(1000000):
+#             pass
+#
+#     test()
+#
+#     class Test():
+#         @timer
+#         def testf(self, arg):
+#             for i in range(10000000):
+#                 pass
+#
+#     t = Test()
+#     t.testf(2)
