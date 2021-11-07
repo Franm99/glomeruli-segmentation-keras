@@ -96,7 +96,12 @@ class Dataset():
         self._normalize()
 
     @staticmethod
-    def _filter(patch: np.ndarray):
+    def _filter(patch: np.ndarray) -> bool:
+        """
+        Patch filter based on median value from ordered histogram to find patches containing kidney tissue.
+        :param patch: patch to check up.
+        :return: True if patch contains tissue, False if not.
+        """
         counts, bins = np.histogram(patch.flatten(), list(range(256+1)))
         counts.sort()
         median = np.median(counts)
@@ -105,10 +110,19 @@ class Dataset():
         return False
 
     def _normalize(self):
+        """
+        Normalize dataset to U-Net input format:
+        np.ndarray with format: (num_of_samples, h, w, num_channels)
+        """
         self.ims = np.expand_dims(normalize(np.array(self.ims), axis=1), 3)
         self.masks = np.expand_dims((np.array(self.masks)), 3) / 255
 
     def split(self, ratio: float = 0.15) -> Tuple:
+        """
+        Split dataset (both images and masks) for training and test
+        :param ratio: (0.0 - 1.0) test percentage
+        :return: [xtrain, xtest, ytrain, ytest]
+        """
         return train_test_split(self.ims, self.masks, test_size=ratio)
 
 
