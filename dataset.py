@@ -44,22 +44,21 @@ class Dataset():
             self._masks_path = _DEFAULT_MASKS_PATH
 
     @timer
-    def load(self, limit_samples: Optional[float] = None):
+    def load(self, limit_samples: Optional[float] = None, staining: Optional[str] = None):
         """
         Load data to work with.
         :param limit_samples (0.0 - 1.0) Limits the number of samples taken from the specified data folder. If 1.0, the 
         whole set of data is loaded.
+        :param staining: ["PAS", "PM", "HE"] Parameter to select a specific staining between the 3 available. If set to
+        None, all of them are taken for dataset.
         """
         # Get full path to both images and masks directories.
-        ims_names = glob.glob(self._ims_path + '/*')
-        masks_names = glob.glob(self._masks_path + '/*')
-        
+        [ims_names, masks_names] = self._get_data_dirs(staining)
+
         if limit_samples and (0.0 < limit_samples < 1.0):
             last = int(limit_samples * len(ims_names))
             ims_names = ims_names[0:last]
             masks_names = masks_names[0:last]
-            ims_names.sort()
-            masks_names.sort()
 
         for im_name, mask_name in tqdm(zip(ims_names, masks_names), total=len(ims_names),
                                        desc= "Loading images and masks"):
@@ -121,6 +120,16 @@ class Dataset():
         self.ims = np.expand_dims(normalize(np.array(self.ims), axis=1), 3)
         self.masks = np.expand_dims((np.array(self.masks)), 3) / 255
 
+    def _get_data_dirs(self, staining: str):
+        ims_names = glob.glob(self._ims_path + '/*')
+        masks_names = glob.glob(self._masks_path + '/*')
+        if staining:
+            ims_names = [i for i in ims_names if staining in i]
+            masks_names = [i for i in masks_names if staining in i]
+        ims_names.sort()
+        masks_names.sort()
+        return [ims_names, masks_names]
+
     def split(self, ratio: float = 0.15) -> Tuple:
         """
         Split dataset (both images and masks) for training and test
@@ -148,7 +157,7 @@ def im_debug(dataset: Dataset):
 # Testing
 if __name__ == '__main__':
     dataset = Dataset()
-    dataset.load(limit_samples=0.03)
+    dataset.load(staining="PAS")
     dataset.gen_subpatches(rz_ratio=5)
     im_debug(dataset)  # Debug
 
