@@ -123,10 +123,9 @@ class TestBench:
 
 
 if __name__ == '__main__':
-    masks_paths = glob.glob(_DATASET_PATH + '/masks_*')
-    resize_factors = list(range(1, 8, 1))
-    # masks_paths = [_DATASET_PATH + '/masks_250',
-    #                _DATASET_PATH + '/masks_400']  # Debug
+    masks_paths = [_DATASET_PATH + '/masks_250']
+    resize_factors = list(range(3, 7, 1))
+
     # resize_factors = [5, 7]  # Debug
     limit_samples = 0.02
     testbench = TestBench(masks_paths, resize_factors, limit_samples)

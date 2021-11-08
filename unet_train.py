@@ -52,38 +52,39 @@ if __name__ == '__main__':
     plt.close()
 
     model = get_model()
-    weights_fname = 'mitochondria_test.hdf5'
-    checkpointer = ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
-    callbacks = [checkpointer]
+    model.load_weights('mitochondria_test.hdf5')
+    # weights_fname = 'mitochondria_test.hdf5'
+    # checkpointer = ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
+    # callbacks = [checkpointer]
 
     # 3. Fit model and save weights
-    history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=15,
-                        validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
-    model.save('last.hdf5')
-
-    # 4. Show loss and accuracy results
-    loss = history.history['loss']
-    val_loss = history.history['val_loss']
-    epochs = range(1, len(loss) + 1)
-    plt.plot(epochs, loss, 'y', label='Training_loss')
-    plt.plot(epochs, val_loss, 'r', label='Validation loss')
-    plt.title('Training and validation loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.savefig("loss.png")
-    plt.close()
-
-    acc = history.history['acc']
-    val_acc = history.history['val_acc']
-
-    plt.plot(epochs, acc, 'y', label="Training_acc")
-    plt.plot(epochs, val_acc, 'r', label="Validation_acc")
-    plt.title("Training and validation accuracy")
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.savefig("accuracy.png")
-    plt.close()
+    # history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=15,
+    #                     validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
+    # model.save('last.hdf5')
+    #
+    # # 4. Show loss and accuracy results
+    # loss = history.history['loss']
+    # val_loss = history.history['val_loss']
+    # epochs = range(1, len(loss) + 1)
+    # plt.plot(epochs, loss, 'y', label='Training_loss')
+    # plt.plot(epochs, val_loss, 'r', label='Validation loss')
+    # plt.title('Training and validation loss')
+    # plt.xlabel('Epochs')
+    # plt.ylabel('Loss')
+    # plt.legend()
+    # plt.savefig("loss.png")
+    # plt.close()
+    #
+    # acc = history.history['acc']
+    # val_acc = history.history['val_acc']
+    #
+    # plt.plot(epochs, acc, 'y', label="Training_acc")
+    # plt.plot(epochs, val_acc, 'r', label="Validation_acc")
+    # plt.title("Training and validation accuracy")
+    # plt.xlabel("Epochs")
+    # plt.ylabel("Accuracy")
+    # plt.savefig("accuracy.png")
+    # plt.close()
 
     # 4. Compute IoU score
     ypred = model.predict(xtest)
