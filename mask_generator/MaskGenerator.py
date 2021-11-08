@@ -106,7 +106,7 @@ class MaskGenerator:
 
 
 if __name__ == '__main__':
-    maskGenerator = MaskGenerator(mask_type=MaskType.BBOX)
+    maskGenerator = MaskGenerator(mask_type=MaskType.CIRCULAR)
     # TODO: relaunch with smaller radii (150, 200, 250, 300)
     radii = np.arange(150, 350, 50)
     for radius in tqdm(radii, desc="Masks folders"):
