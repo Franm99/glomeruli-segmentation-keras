@@ -2,7 +2,7 @@ from unet_model import unet_model
 from dataset import Dataset
 from typing import List, Optional
 import os, glob
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+import tensorflow.keras.callbacks as cb
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -48,9 +48,11 @@ class TestBench:
         self.model = get_model()
         self._file_bname = mask_path.split('_')[-1] + '_' + str(resize_factor)
         weights_fname = _WEIGHTS_BASENAME + self._file_bname + '.hdf5'
-        checkpointer = ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
-        earlystopper = EarlyStopping(monitor='loss', patience=3)
-        callbacks = [checkpointer, earlystopper]
+        checkpoint_cb = cb.ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
+        earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=3)
+        tensorboard_cb = cb.TensorBoard(log_dir="./logs")
+        csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
+        callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb]
 
         # 3. Train the model
         history = self.model.fit(xtrain, ytrain, batch_size=_BATCH_SIZE, verbose=1, epochs=_EPOCHS,
