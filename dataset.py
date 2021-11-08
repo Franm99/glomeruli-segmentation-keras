@@ -11,12 +11,13 @@ import cv2.cv2 as cv2
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import normalize
-from utils import show_ims, timer
+from utils import show_masked_ims, timer
 import random
+import matplotlib.pyplot as plt
 
 _PATCH_SIZE = 256
 _DATASET_PATH = "D:/DataGlomeruli"
-_DEFAULT_MASKS_PATH = _DATASET_PATH + '/masks_400'
+_DEFAULT_MASKS_PATH = _DATASET_PATH + '/masks_250'
 
 
 class Dataset():
@@ -84,32 +85,33 @@ class Dataset():
                     if y+patch_size_or >= h:
                         y = h - patch_size_or
                     patch_arr = im[y:y+patch_size_or, x:x+patch_size_or]
-                    if self._filter(patch_arr):  # sub-patches not containing any tissue fragment are discarded
-                        continue
-                    # Converting to PIL Image format for resize operation
-                    patch = Image.fromarray(patch_arr)
-                    patch = patch.resize((_PATCH_SIZE, _PATCH_SIZE))
-                    self.ims.append(np.asarray(patch))
-                    patch_mask = Image.fromarray(mask[y:y+patch_size_or, x:x+patch_size_or])
-                    patch_mask = patch_mask.resize((_PATCH_SIZE, _PATCH_SIZE))
-                    self.masks.append(np.asarray(patch_mask))
-        # show_ims(random.sample(self.ims, 6))
-        self._normalize()
+                    mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
+                    if self._filter(mask_arr):
+                        # Converting to PIL Image format for resize operation
+                        patch = Image.fromarray(patch_arr)
+                        patch = patch.resize((_PATCH_SIZE, _PATCH_SIZE))
+                        self.ims.append(np.asarray(patch))
+                        patch_mask = Image.fromarray(mask_arr)
+                        patch_mask = patch_mask.resize((_PATCH_SIZE, _PATCH_SIZE))
+                        self.masks.append(np.asarray(patch_mask))
         print("Dataset size: {}".format(len(self.ims)))
+        self.show_random_samples(3)
+        # self._normalize()  # TODO: check if it is correctly done
 
     @staticmethod
-    def _filter(patch: np.ndarray) -> bool:
+    def _filter(patch: np.ndarray) -> bool:  # Modify: not include sub-patches without glomeruli
         """
         Patch filter based on median value from ordered histogram to find patches containing kidney tissue.
         :param patch: patch to check up.
         :return: True if patch contains tissue, False if not.
         """
-        counts, bins = np.histogram(patch.flatten(), list(range(256+1)))
-        counts.sort()
-        median = np.median(counts)
-        if median <= 3.:
-            return True
-        return False
+        return np.sum(patch) > 0
+        # counts, bins = np.histogram(patch.flatten(), list(range(256+1)))
+        # counts.sort()
+        # median = np.median(counts)
+        # if median <= 3.:
+        #     return True
+        # return False
 
     def _normalize(self):
         """
@@ -127,17 +129,29 @@ class Dataset():
         """
         return train_test_split(self.ims, self.masks, test_size=ratio)
 
+    def show_random_samples(self, n: int):
+        indexes = random.sample(range(len(self.ims)), n)
+        ims_sample = [self.ims[idx] for idx in indexes]
+        masks_sample = [self.masks[idx] for idx in indexes]
+        show_masked_ims(ims_sample, masks_sample, 1, n)
+
     def __len__(self):
         return len(self.ims)
 
-    def __getitem__(self, idx):
-        return self.ims[idx], self.masks[idx]
+
+def im_debug(dataset: Dataset):
+    while True:
+        dataset.show_random_samples(4)
+        plt.close()
+
 
 # Testing
 if __name__ == '__main__':
     dataset = Dataset()
     dataset.load(limit_samples=0.03)
     dataset.gen_subpatches(rz_ratio=5)
+    im_debug(dataset)  # Debug
+
     xtrain, xtest, ytrain, ytest = dataset.split()
     print("Training size:", len(xtrain))
     print("Test size:", len(xtest))
