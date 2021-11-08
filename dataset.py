@@ -57,6 +57,8 @@ class Dataset():
             last = int(limit_samples * len(ims_names))
             ims_names = ims_names[0:last]
             masks_names = masks_names[0:last]
+            ims_names.sort()
+            masks_names.sort()
 
         for im_name, mask_name in tqdm(zip(ims_names, masks_names), total=len(ims_names),
                                        desc= "Loading images and masks"):

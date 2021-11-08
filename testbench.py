@@ -1,7 +1,7 @@
 from unet_model import unet_model
 from dataset import Dataset
 from typing import List, Optional
-import os
+import os, glob
 from tensorflow.keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 import numpy as np
@@ -56,7 +56,7 @@ class TestBench:
                             validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
         weights_fname_final = _WEIGHTS_BASENAME + self._file_bname + 'final.hdf5'
         self.model.save(weights_fname_final)
-        self.compute_IoU(xtest, ytest)
+        self.compute_IoU(xtest, ytest, self.model)
         self.save_random_prediction(xtest, ytest)
         return history
 
@@ -86,8 +86,8 @@ class TestBench:
         plt.savefig(os.path.join(_OUTPUT_BASENAME, 'acc_' + self._file_bname + ".png"))
         # plt.show()
 
-    def compute_IoU(self, xtest, ytest):
-        ypred = self.model.predict(xtest)
+    def compute_IoU(self, xtest, ytest, model):
+        ypred = model.predict(xtest)
         ypred_th = ypred > 0.5
         intersection = np.logical_and(ytest, ypred_th)
         union = np.logical_or(ytest, ypred_th)
@@ -120,11 +120,11 @@ class TestBench:
 
 
 if __name__ == '__main__':
-    # masks_paths = glob.glob(_DATASET_PATH + '/masks_*')
-    # resize_factors = list(range(1, 8, 1))
-    masks_paths = [_DATASET_PATH + '/masks_250',
-                   _DATASET_PATH + '/masks_400']  # Debug
-    resize_factors = [5, 7]  # Debug
-    limit_samples = 0.05
+    masks_paths = glob.glob(_DATASET_PATH + '/masks_*')
+    resize_factors = list(range(1, 8, 1))
+    # masks_paths = [_DATASET_PATH + '/masks_250',
+    #                _DATASET_PATH + '/masks_400']  # Debug
+    # resize_factors = [5, 7]  # Debug
+    limit_samples = 0.02
     testbench = TestBench(masks_paths, resize_factors, limit_samples)
     testbench.run(save=True)
