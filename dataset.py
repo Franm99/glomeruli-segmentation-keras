@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 _PATCH_SIZE = 256
 _DATASET_PATH = "D:/DataGlomeruli"
+# NOTE: 250px radius seems to be the better size to fit a whole mean glomeruli
 _DEFAULT_MASKS_PATH = _DATASET_PATH + '/masks_250'
 
 
@@ -94,8 +95,8 @@ class Dataset():
                         patch_mask = patch_mask.resize((_PATCH_SIZE, _PATCH_SIZE))
                         self.masks.append(np.asarray(patch_mask))
         print("Dataset size: {}".format(len(self.ims)))
-        self.show_random_samples(3)
-        # self._normalize()  # TODO: check if it is correctly done
+        # self.show_random_samples(3)  # DEBUG
+        self._normalize()  # TODO: check if it is correctly done
 
     @staticmethod
     def _filter(patch: np.ndarray) -> bool:  # Modify: not include sub-patches without glomeruli
@@ -154,14 +155,24 @@ def im_debug(dataset: Dataset):
         plt.close()
 
 
+def split_debug(xtrain, xtest, ytrain, ytest):
+    while True:
+        idx_train = random.randint(0, len(xtrain))
+        idx_test = random.randint(0, len(xtest))
+        show_masked_ims([xtrain[idx_train][:, :, 0], xtest[idx_test][:, :, 0]],
+                        [ytrain[idx_train][:, :, 0], ytest[idx_test][:, :, 0]],
+                        1, 2)
+
+
 # Testing
 if __name__ == '__main__':
     dataset = Dataset()
-    dataset.load(staining="PAS")
-    dataset.gen_subpatches(rz_ratio=5)
-    im_debug(dataset)  # Debug
+    dataset.load(limit_samples=0.5, staining="PAS")
+    dataset.gen_subpatches(rz_ratio=4)
+    # im_debug(dataset)  # Debug
 
     xtrain, xtest, ytrain, ytest = dataset.split()
+    # split_debug(xtrain, xtest, ytrain, ytest)
     print("Training size:", len(xtrain))
     print("Test size:", len(xtest))
 
