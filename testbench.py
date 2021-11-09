@@ -8,13 +8,14 @@ import numpy as np
 import random
 
 PATCH_SIZE = 256
-_DATASET_PATH = "D:/DataGlomeruli"  # INFO: To modify in server (Alien5 or Artemisa)
+# _DATASET_PATH = "D:/DataGlomeruli"  # INFO: To modify in server (Alien5 or Artemisa)
+_DATASET_PATH = "images/training"
 _WEIGHTS_BASENAME = "weights/weights_"
 _OUTPUT_BASENAME = "output"
 
 # TRAINING PARAMETERS
 _BATCH_SIZE = 16
-_EPOCHS = 2
+_EPOCHS = 5
 
 
 def get_model():
@@ -23,10 +24,12 @@ def get_model():
 
 
 class TestBench:
-    def __init__(self, mask_paths: List[str], resize_factors: List[int], limit_samples: Optional[float] = None):
+    def __init__(self, mask_paths: List[str], resize_factors: List[int],
+                 limit_samples: Optional[float] = None, staining=None):
         self._mask_paths = mask_paths
         self._resize_factors = resize_factors
         self._limit_samples = limit_samples
+        self.staining = staining
         self.model = None
 
     def run(self, save: bool = True):
@@ -40,7 +43,7 @@ class TestBench:
     def _test(self, mask_path, resize_factor, limit_samples):
         # 1. Get dataset and split into train and test
         dataset = Dataset(mask_path)
-        dataset.load(limit_samples=limit_samples)
+        dataset.load(limit_samples=limit_samples, staining=self.staining)
         dataset.gen_subpatches(rz_ratio=5)
         xtrain, xtest, ytrain, ytest = dataset.split(ratio=0.15)
 
@@ -98,7 +101,7 @@ class TestBench:
         print("IoU score is ", iou_score)
 
     def save_random_prediction(self, xtest, ytest):
-        test_img_number = random.randint(0, len(xtest))
+        test_img_number = random.randint(0, len(xtest)-1)
         test_img = xtest[test_img_number]
         ground_truth = ytest[test_img_number]
         test_img_norm = test_img[:, :, 0][:, :, None]
@@ -128,5 +131,5 @@ if __name__ == '__main__':
 
     # resize_factors = [5, 7]  # Debug
     limit_samples = 0.02
-    testbench = TestBench(masks_paths, resize_factors, limit_samples)
+    testbench = TestBench(masks_paths, resize_factors, limit_samples=None, staining=None)
     testbench.run(save=True)

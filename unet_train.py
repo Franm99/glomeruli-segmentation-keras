@@ -2,7 +2,7 @@ from unet_model import unet_model
 import cv2.cv2 as cv2
 import numpy as np
 from tensorflow.keras.utils import normalize
-from tensorflow.keras.callbacks import ModelCheckpoint
+import tensorflow.keras.callbacks as cb
 import matplotlib.pyplot as plt
 import os
 import random
@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 
 PATCH_SIZE = 256
 mask_dataset = []
-_DATASET_PATH = "D:/DataFlomeruli"
+_DATASET_PATH = "D:/DataGlomeruli"  # Change!
 
 
 def get_model():
@@ -26,15 +26,17 @@ def get_images(imsPath: str):
 
 
 if __name__ == '__main__':
-    im_path = "images/"
+    im_path = "D:/DataGlomeruli"
 
     # 1. Get data
-    imFolders = [im_path+i for i in os.listdir(im_path) if os.path.isdir(im_path+i)]
-    imFolders.sort()
-    # testing = get_images(imFolders[0])
-    # testing_gt = get_images(imFolders[1])
-    image_dataset = get_images(imFolders[2])
-    mask_dataset = get_images(imFolders[3])
+    # imFolders = [im_path+i for i in os.listdir(im_path) if os.path.isdir(im_path+i)]
+    # imFolders.sort()
+    # # testing = get_images(imFolders[0])
+    # # testing_gt = get_images(imFolders[1])
+    # image_dataset = get_images(imFolders[2])
+    # mask_dataset = get_images(imFolders[3])
+    image_dataset = get_images(os.path.join(im_path, "patches_ims"))
+    mask_dataset = get_images(os.path.join(im_path, "patches_masks"))
 
     image_dataset = np.expand_dims(normalize(np.array(image_dataset), axis=1), 3)
     mask_dataset = np.expand_dims((np.array(mask_dataset)), 3) / 255.
@@ -52,39 +54,42 @@ if __name__ == '__main__':
     plt.close()
 
     model = get_model()
-    model.load_weights('mitochondria_test.hdf5')
-    # weights_fname = 'mitochondria_test.hdf5'
-    # checkpointer = ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
-    # callbacks = [checkpointer]
+    # model.load_weights('mitochondria_test.hdf5')
+    weights_fname = 'glomeruli.hdf5'
+    checkpoint_cb = cb.ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
+    earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=3)
+    tensorboard_cb = cb.TensorBoard(log_dir="./logs")
+    csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
+    callbacks = [checkpoint_cb, earlystopping_cb]
 
     # 3. Fit model and save weights
-    # history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=15,
-    #                     validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
-    # model.save('last.hdf5')
-    #
-    # # 4. Show loss and accuracy results
-    # loss = history.history['loss']
-    # val_loss = history.history['val_loss']
-    # epochs = range(1, len(loss) + 1)
-    # plt.plot(epochs, loss, 'y', label='Training_loss')
-    # plt.plot(epochs, val_loss, 'r', label='Validation loss')
-    # plt.title('Training and validation loss')
-    # plt.xlabel('Epochs')
-    # plt.ylabel('Loss')
-    # plt.legend()
-    # plt.savefig("loss.png")
-    # plt.close()
-    #
-    # acc = history.history['acc']
-    # val_acc = history.history['val_acc']
-    #
-    # plt.plot(epochs, acc, 'y', label="Training_acc")
-    # plt.plot(epochs, val_acc, 'r', label="Validation_acc")
-    # plt.title("Training and validation accuracy")
-    # plt.xlabel("Epochs")
-    # plt.ylabel("Accuracy")
-    # plt.savefig("accuracy.png")
-    # plt.close()
+    history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=15,
+                        validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
+    model.save('last.hdf5')
+
+    # 4. Show loss and accuracy results
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = range(1, len(loss) + 1)
+    plt.plot(epochs, loss, 'y', label='Training_loss')
+    plt.plot(epochs, val_loss, 'r', label='Validation loss')
+    plt.title('Training and validation loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig("loss.png")
+    plt.close()
+
+    acc = history.history['acc']
+    val_acc = history.history['val_acc']
+
+    plt.plot(epochs, acc, 'y', label="Training_acc")
+    plt.plot(epochs, val_acc, 'r', label="Validation_acc")
+    plt.title("Training and validation accuracy")
+    plt.xlabel("Epochs")
+    plt.ylabel("Accuracy")
+    plt.savefig("accuracy.png")
+    plt.close()
 
     # 4. Compute IoU score
     ypred = model.predict(xtest)
