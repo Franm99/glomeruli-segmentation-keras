@@ -17,8 +17,12 @@ import matplotlib.pyplot as plt
 
 _PATCH_SIZE = 256
 _DATASET_PATH = "D:/DataGlomeruli"
+# _DATASET_PATH = "images/training"
 # NOTE: 250px radius seems to be the better size to fit a whole mean glomeruli
 _DEFAULT_MASKS_PATH = _DATASET_PATH + '/masks_250'
+# _DEFAULT_MASKS_PATH = "images/training_groundtruth"
+_PATCHES_IMS_PATH = "D:/DataGlomeruli/patches_ims"
+_PATCHES_MASKS_PATH = "D:/DataGlomeruli/patches_masks"
 
 
 class Dataset():
@@ -29,7 +33,8 @@ class Dataset():
         """
         # Initializing variables
         self._ims_path = _DATASET_PATH + '/ims'  # Path to original images
-        self._masks_path = masks_path            
+        # self._ims_path = _DATASET_PATH  # Path to original images
+        self._masks_path = masks_path
         # Lists to load the set of original patches.
         self.data = []
         self.data_masks = []
@@ -62,21 +67,22 @@ class Dataset():
             masks_names = masks_names[0:last]
 
         for im_name, mask_name in tqdm(zip(ims_names, masks_names), total=len(ims_names),
-                                       desc= "Loading images and masks"):
+                                       desc= "Loading images and masks", ascii=True, ncols=80):
             im = cv2.imread(im_name, cv2.IMREAD_GRAYSCALE)  # TODO: Also test with RGB or HSV format
             mask = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
             self.data.append(im)
             self.data_masks.append(mask)
 
     @timer
-    def gen_subpatches(self, rz_ratio: int):
+    def gen_subpatches(self, rz_ratio: int, save: bool = False, clear: bool = False):
         """
         Generate sub-patches from original patches. Needed to adjust data for U-Net input requirements.
         :param rz_ratio: Resize ratio. Sub-patches can be taken from a resized version of the original patch.
+        :param save: If True, saves the set of sub-patches to disk.
         """
         patch_size_or = _PATCH_SIZE * rz_ratio
         for im, mask in tqdm(zip(self.data, self.data_masks), total=len(self.data),
-                             desc = "Generating subpatches"):
+                             desc = "Generating subpatches", ascii=True, ncols=80):
             [h, w] = im.shape
             for x in range(0, w, patch_size_or):
                 if x+patch_size_or >= w:
@@ -87,13 +93,15 @@ class Dataset():
                     patch_arr = im[y:y+patch_size_or, x:x+patch_size_or]
                     mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
                     if self._filter(mask_arr):
-                        # Converting to PIL Image format for resize operation
-                        patch = Image.fromarray(patch_arr)
-                        patch = patch.resize((_PATCH_SIZE, _PATCH_SIZE))
-                        self.ims.append(np.asarray(patch))
-                        patch_mask = Image.fromarray(mask_arr)
-                        patch_mask = patch_mask.resize((_PATCH_SIZE, _PATCH_SIZE))
-                        self.masks.append(np.asarray(patch_mask))
+                        # Convert to PIL for resizing and returning to numpy array format.
+                        patch = np.asarray(Image.fromarray(patch_arr).resize((_PATCH_SIZE, _PATCH_SIZE)))
+                        patch_mask = np.asarray(Image.fromarray(mask_arr).resize((_PATCH_SIZE, _PATCH_SIZE)))
+                        self.ims.append(patch)
+                        self.masks.append(patch_mask)
+
+        if save:
+            self._save_dataset(clear)
+
         print("Dataset size: {}".format(len(self.ims)))
         # self.show_random_samples(3)  # DEBUG
         self._normalize()  # TODO: check if it is correctly done
@@ -131,6 +139,24 @@ class Dataset():
         masks_names.sort()
         return [ims_names, masks_names]
 
+    def _save_dataset(self, clear: bool):
+        if clear:
+            ims = glob.glob(_PATCHES_IMS_PATH + '/*')
+            masks = glob.glob(_PATCHES_MASKS_PATH + '/*')
+            for im, mask in zip(ims, masks):
+                try:
+                    os.unlink(im)
+                    os.unlink(mask)
+                except Exception as e:
+                    print("Failed to delete files. Reason: {}".format(e))
+
+        num_digits = len(str(len(self.ims))) + 1
+        for idx, (im, mask) in enumerate(zip(self.ims, self.masks)):
+            bname = str(idx).zfill(num_digits) + ".png"
+            cv2.imwrite(os.path.join(_PATCHES_IMS_PATH, bname), im)
+            cv2.imwrite(os.path.join(_PATCHES_MASKS_PATH, bname), mask)
+
+
     def split(self, ratio: float = 0.15) -> Tuple:
         """
         Split dataset (both images and masks) for training and test
@@ -157,8 +183,8 @@ def im_debug(dataset: Dataset):
 
 def split_debug(xtrain, xtest, ytrain, ytest):
     while True:
-        idx_train = random.randint(0, len(xtrain))
-        idx_test = random.randint(0, len(xtest))
+        idx_train = random.randint(0, len(xtrain)-1)
+        idx_test = random.randint(0, len(xtest)-1)
         show_masked_ims([xtrain[idx_train][:, :, 0], xtest[idx_test][:, :, 0]],
                         [ytrain[idx_train][:, :, 0], ytest[idx_test][:, :, 0]],
                         1, 2)
@@ -167,12 +193,12 @@ def split_debug(xtrain, xtest, ytrain, ytest):
 # Testing
 if __name__ == '__main__':
     dataset = Dataset()
-    dataset.load(limit_samples=0.5, staining="PAS")
-    dataset.gen_subpatches(rz_ratio=4)
+    dataset.load(limit_samples=None, staining="PAS")
+    dataset.gen_subpatches(rz_ratio=4, save=True, clear=True)
     # im_debug(dataset)  # Debug
 
     xtrain, xtest, ytrain, ytest = dataset.split()
-    # split_debug(xtrain, xtest, ytrain, ytest)
+    split_debug(xtrain, xtest, ytrain, ytest)
     print("Training size:", len(xtrain))
     print("Test size:", len(xtest))
 
