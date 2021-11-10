@@ -20,7 +20,7 @@ _PATCH_SIZE = 256
 _DATASET_PATH = "/home/francisco/Escritorio/DataGlomeruli"
 # _DATASET_PATH = "images/training"
 # NOTE: 250px radius seems to be the better size to fit a whole mean glomeruli
-_DEFAULT_MASKS_PATH = _DATASET_PATH + '/masks_250'
+_DEFAULT_MASKS_PATH = _DATASET_PATH + '/masks_200'
 # _DEFAULT_MASKS_PATH = "images/training_groundtruth"
 # _PATCHES_IMS_PATH = "D:/DataGlomeruli/patches_ims"
 _PATCHES_IMS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_ims"
@@ -196,8 +196,8 @@ def split_debug(xtrain, xtest, ytrain, ytest):
 # Testing
 if __name__ == '__main__':
     dataset = Dataset()
-    dataset.load(limit_samples=None, staining="PAS")
-    dataset.gen_subpatches(rz_ratio=4, save=False, clear=False)
+    dataset.load(limit_samples=None, staining="HE")
+    dataset.gen_subpatches(rz_ratio=4, save=True, clear=True)
     im_debug(dataset)  # Debug
 
     xtrain, xtest, ytrain, ytest = dataset.split()

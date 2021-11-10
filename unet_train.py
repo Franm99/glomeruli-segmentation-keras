@@ -7,10 +7,12 @@ import matplotlib.pyplot as plt
 import os
 import random
 from sklearn.model_selection import train_test_split
+from tensorboard import program
 
 PATCH_SIZE = 256
 mask_dataset = []
 # _DATASET_PATH = "/home/francisco/Escritorio/DataGlomeruli"  # Change!
+_TB_TRACKING_ADDRESS = 'logs/'
 
 
 def get_model():
@@ -62,6 +64,12 @@ if __name__ == '__main__':
     tensorboard_cb = cb.TensorBoard(log_dir="./logs")
     csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
     callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb, csvlogger_cb]
+
+    # Launch TensorBoard
+    tb = program.TensorBoard()
+    tb.configure(argv=[None, '--logdir', _TB_TRACKING_ADDRESS])
+    url = tb.launch()
+    print(f"Tensorflow listening on {url}")
 
     # 3. Fit model and save weights
     history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=50,
