@@ -89,7 +89,8 @@ def show_masked_ims(imgs: List[np.ndarray], masks: List[np.ndarray],
     for i in range(1, N + 1):
         plt.subplot(m, n, i)
         if len(imgs[i-1].shape) == 3:
-            plt.imshow(imgs[i-1])
+            plt.imshow(imgs[i-1][:, :, 0], cmap="gray")
+            plt.imshow(masks[i-1][:, :, 0], cmap="jet", alpha=0.3)
         else:
             plt.imshow(imgs[i-1], cmap="gray")
             plt.imshow(masks[i-1], cmap="jet", alpha=0.3)

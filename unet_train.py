@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 
 PATCH_SIZE = 256
 mask_dataset = []
-_DATASET_PATH = "D:/DataGlomeruli"  # Change!
+# _DATASET_PATH = "/home/francisco/Escritorio/DataGlomeruli"  # Change!
 
 
 def get_model():
@@ -26,7 +26,7 @@ def get_images(imsPath: str):
 
 
 if __name__ == '__main__':
-    im_path = "D:/DataGlomeruli"
+    im_path = "/home/francisco/Escritorio/DataGlomeruli"
 
     # 1. Get data
     # imFolders = [im_path+i for i in os.listdir(im_path) if os.path.isdir(im_path+i)]
@@ -40,6 +40,7 @@ if __name__ == '__main__':
 
     image_dataset = np.expand_dims(normalize(np.array(image_dataset), axis=1), 3)
     mask_dataset = np.expand_dims((np.array(mask_dataset)), 3) / 255.
+    print("Size of dataset: {}".format(len(image_dataset)))
 
     # 2. Train model
     xtrain, xtest, ytrain, ytest = train_test_split(image_dataset, mask_dataset, test_size=0.10)
@@ -54,16 +55,16 @@ if __name__ == '__main__':
     plt.close()
 
     model = get_model()
-    # model.load_weights('mitochondria_test.hdf5')
+    # model.load_weights('glomeruli.hdf5')
     weights_fname = 'glomeruli.hdf5'
     checkpoint_cb = cb.ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
-    earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=3)
+    earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=2)
     tensorboard_cb = cb.TensorBoard(log_dir="./logs")
     csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
-    callbacks = [checkpoint_cb, earlystopping_cb]
+    callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb, csvlogger_cb]
 
     # 3. Fit model and save weights
-    history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=15,
+    history = model.fit(xtrain, ytrain, batch_size=16, verbose=1, epochs=50,
                         validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
     model.save('last.hdf5')
 
@@ -80,8 +81,8 @@ if __name__ == '__main__':
     plt.savefig("loss.png")
     plt.close()
 
-    acc = history.history['acc']
-    val_acc = history.history['val_acc']
+    acc = history.history['accuracy']
+    val_acc = history.history['val_accuracy']
 
     plt.plot(epochs, acc, 'y', label="Training_acc")
     plt.plot(epochs, val_acc, 'r', label="Validation_acc")
