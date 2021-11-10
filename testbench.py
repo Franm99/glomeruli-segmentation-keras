@@ -8,14 +8,13 @@ import numpy as np
 import random
 
 PATCH_SIZE = 256
-# _DATASET_PATH = "D:/DataGlomeruli"  # INFO: To modify in server (Alien5 or Artemisa)
-_DATASET_PATH = "images/training"
+_DATASET_PATH = "/home/francisco/Escritorio/DataGlomeruli"  # INFO: To modify in server (Alien5 or Artemisa)
 _WEIGHTS_BASENAME = "weights/weights_"
 _OUTPUT_BASENAME = "output"
 
 # TRAINING PARAMETERS
 _BATCH_SIZE = 16
-_EPOCHS = 5
+_EPOCHS = 50
 
 
 def get_model():
@@ -44,8 +43,8 @@ class TestBench:
         # 1. Get dataset and split into train and test
         dataset = Dataset(mask_path)
         dataset.load(limit_samples=limit_samples, staining=self.staining)
-        dataset.gen_subpatches(rz_ratio=5)
-        xtrain, xtest, ytrain, ytest = dataset.split(ratio=0.15)
+        dataset.gen_subpatches(rz_ratio=resize_factor)
+        xtrain, xtest, ytrain, ytest = dataset.split(ratio=0.10)
 
         # 2.  Get model and prepare testbench
         self.model = get_model()
@@ -55,12 +54,12 @@ class TestBench:
         earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=3)
         tensorboard_cb = cb.TensorBoard(log_dir="./logs")
         csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
-        callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb]
+        callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb, csvlogger_cb]
 
         # 3. Train the model
         history = self.model.fit(xtrain, ytrain, batch_size=_BATCH_SIZE, verbose=1, epochs=_EPOCHS,
                             validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
-        weights_fname_final = _WEIGHTS_BASENAME + self._file_bname + 'final.hdf5'
+        weights_fname_final = _WEIGHTS_BASENAME + self._file_bname + '_' + str(_EPOCHS) + 'final.hdf5'
         self.model.save(weights_fname_final)
         self.compute_IoU(xtest, ytest, self.model)
         self.save_random_prediction(xtest, ytest)
@@ -94,7 +93,7 @@ class TestBench:
 
     def compute_IoU(self, xtest, ytest, model):
         ypred = model.predict(xtest)
-        ypred_th = ypred > 0.5
+        ypred_th = ypred > 0.3
         intersection = np.logical_and(ytest, ypred_th)
         union = np.logical_or(ytest, ypred_th)
         iou_score = np.sum(intersection) / np.sum(union)
@@ -126,10 +125,10 @@ class TestBench:
 
 
 if __name__ == '__main__':
-    masks_paths = [_DATASET_PATH + '/masks_250']
-    resize_factors = list(range(3, 7, 1))
+    masks_paths = [_DATASET_PATH + '/masks_200']
+    resize_factors = list(range(4, 6, 1))
 
     # resize_factors = [5, 7]  # Debug
-    limit_samples = 0.02
-    testbench = TestBench(masks_paths, resize_factors, limit_samples=None, staining=None)
+    limit_samples = None
+    testbench = TestBench(masks_paths, resize_factors, limit_samples=limit_samples, staining="HE")
     testbench.run(save=True)

@@ -16,13 +16,16 @@ import random
 import matplotlib.pyplot as plt
 
 _PATCH_SIZE = 256
-_DATASET_PATH = "D:/DataGlomeruli"
+# _DATASET_PATH = "D:/DataGlomeruli"
+_DATASET_PATH = "/home/francisco/Escritorio/DataGlomeruli"
 # _DATASET_PATH = "images/training"
 # NOTE: 250px radius seems to be the better size to fit a whole mean glomeruli
 _DEFAULT_MASKS_PATH = _DATASET_PATH + '/masks_250'
 # _DEFAULT_MASKS_PATH = "images/training_groundtruth"
-_PATCHES_IMS_PATH = "D:/DataGlomeruli/patches_ims"
-_PATCHES_MASKS_PATH = "D:/DataGlomeruli/patches_masks"
+# _PATCHES_IMS_PATH = "D:/DataGlomeruli/patches_ims"
+_PATCHES_IMS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_ims"
+# _PATCHES_MASKS_PATH = "D:/DataGlomeruli/patches_masks"
+_PATCHES_MASKS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_masks"
 
 
 class Dataset():
@@ -100,11 +103,11 @@ class Dataset():
                         self.masks.append(patch_mask)
 
         if save:
-            self._save_dataset(clear)
+            self._save_dataset(clear=clear)
 
         print("Dataset size: {}".format(len(self.ims)))
         # self.show_random_samples(3)  # DEBUG
-        self._normalize()  # TODO: check if it is correctly done
+        self._normalize()
 
     @staticmethod
     def _filter(patch: np.ndarray) -> bool:  # Modify: not include sub-patches without glomeruli
@@ -194,8 +197,8 @@ def split_debug(xtrain, xtest, ytrain, ytest):
 if __name__ == '__main__':
     dataset = Dataset()
     dataset.load(limit_samples=None, staining="PAS")
-    dataset.gen_subpatches(rz_ratio=4, save=True, clear=True)
-    # im_debug(dataset)  # Debug
+    dataset.gen_subpatches(rz_ratio=4, save=False, clear=False)
+    im_debug(dataset)  # Debug
 
     xtrain, xtest, ytrain, ytest = dataset.split()
     split_debug(xtrain, xtest, ytrain, ytest)
