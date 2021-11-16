@@ -1,20 +1,29 @@
 from unet_model import unet_model
-from dataset import Dataset
 from typing import List, Optional
-import os, glob
+import os
 import tensorflow.keras.callbacks as cb
+from tensorflow.keras.utils import normalize
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+from dataset2 import Dataset
+from utils import get_points_from_xml, print_info
+import cv2.cv2 as cv2
+from tqdm import tqdm
 
 PATCH_SIZE = 256
-_DATASET_PATH = "/home/francisco/Escritorio/DataGlomeruli"  # INFO: To modify in server (Alien5 or Artemisa)
-_WEIGHTS_BASENAME = "weights/weights_"
+_DATASET_PATH = "D:/DataGlomeruli"
+# _DATASET_PATH = "/home/francisco/Escritorio/DataGlomeruli"  # INFO: To modify in server (Alien5 or Artemisa)
 _OUTPUT_BASENAME = "output"
 
 # TRAINING PARAMETERS
 _BATCH_SIZE = 16
 _EPOCHS = 50
+_DEF_RZ_RATIO = 4
+
+DEBUG_LIMIT = None
+PREDICTION_TH = 0.5
+
 
 
 def get_model():
@@ -23,49 +32,135 @@ def get_model():
 
 
 class TestBench:
-    def __init__(self, mask_paths: List[str], resize_factors: List[int],
-                 limit_samples: Optional[float] = None, staining=None):
-        self._mask_paths = mask_paths
-        self._resize_factors = resize_factors
+    def __init__(self, mask_sizes: List[int], stainings: List[str],
+                 limit_samples: Optional[float] = None):
+        """ Initialize class variables and main paths. """
+        self._mask_sizes = mask_sizes
+        self._stainings = stainings
         self._limit_samples = limit_samples
-        self.staining = staining
-        self.model = None
 
-    def run(self, save: bool = True):
-        for mask_path in self._mask_paths:
-            for resize_factor in self._resize_factors:
-                print("\nMask radius: {}, Resize factor: {}".format(mask_path.split('_')[-1], resize_factor))
-                history = self._test(mask_path, resize_factor, self._limit_samples)
-                if save:
-                    self._save_results(history)
+        # self._weights_path = _DATASET_PATH + '/weights'
+        self._weights_path = 'weights'
+        self._weights_bname = self._weights_path + '/weights_'
+        self._xml_path = _DATASET_PATH + '/xml'
 
-    def _test(self, mask_path, resize_factor, limit_samples):
-        # 1. Get dataset and split into train and test
-        dataset = Dataset(mask_path)
-        dataset.load(limit_samples=limit_samples, staining=self.staining)
-        dataset.gen_subpatches(rz_ratio=resize_factor)
-        xtrain, xtest, ytrain, ytest = dataset.split(ratio=0.10)
+    def _prepare_data(self, dataset):
+        print_info("Building dataset...")
+        xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=0.9)
+        print_info("Loading Training and Validation images...")
+        ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=DEBUG_LIMIT)
+        print_info("Loading Testing images...")
+        xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=DEBUG_LIMIT)
+        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=_DEF_RZ_RATIO, from_disk=True)
+        xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
+        return xtrain, xval, xtest, ytrain, yval, ytest
 
-        # 2.  Get model and prepare testbench
-        self.model = get_model()
-        self._file_bname = mask_path.split('_')[-1] + '_' + str(resize_factor)
-        weights_fname = _WEIGHTS_BASENAME + self._file_bname + '.hdf5'
-        checkpoint_cb = cb.ModelCheckpoint(weights_fname, verbose=1, save_best_only=True)
-        earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=3)
-        tensorboard_cb = cb.TensorBoard(log_dir="./logs")
-        csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
-        callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb, csvlogger_cb]
+    def _prepare_model(self, save_logs=True):
+        model = get_model()
+        # self._file_bname = mask_path.split('_')[-1] + '_' + str(resize_factor)
+        weights_backup = self._weights_path + '/backup.hdf5'
+        # weights_fname = _WEIGHTS_BASENAME + self._file_bname + '.hdf5'
+        checkpoint_cb = cb.ModelCheckpoint(weights_backup, verbose=1, save_best_only=True)
+        earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=2)
+        if save_logs:
+            tensorboard_cb = cb.TensorBoard(log_dir="./logs")
+            csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
+            callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb, csvlogger_cb]
+        else:
+            callbacks = [checkpoint_cb, earlystopping_cb]
+        return model, callbacks
 
-        # 3. Train the model
-        history = self.model.fit(xtrain, ytrain, batch_size=_BATCH_SIZE, verbose=1, epochs=_EPOCHS,
-                            validation_data=(xtest, ytest), shuffle=False, callbacks=callbacks)
-        weights_fname_final = _WEIGHTS_BASENAME + self._file_bname + '_' + str(_EPOCHS) + 'final.hdf5'
-        self.model.save(weights_fname_final)
-        self.compute_IoU(xtest, ytest, self.model)
-        self.save_random_prediction(xtest, ytest)
-        return history
+    def _prepare_test(self, ims, model):
+        predictions = []
+        org_size = int(PATCH_SIZE * _DEF_RZ_RATIO)
+        for im in tqdm(ims, desc="Computing predictions for test set"):
+            predictions.append(self._get_mask(im, org_size, model))
+        return predictions
 
-    def _save_results(self, history):
+    def _get_mask(self, im, dim, model, th: float = PREDICTION_TH):
+        """ """
+        [h, w] = im.shape
+        # Initializing list of masks
+        mask = np.zeros((h, w), dtype=bool)
+
+        # Loop through the whole in both dimensions
+        for x in range(0, w, dim):
+            if x + dim >= w:
+                x = w - dim
+            for y in range(0, h, dim):
+                if y + dim >= h:
+                    y = h - dim
+                # Get sub-patch in original size
+                patch = im[y:y + dim, x:x + dim]
+
+                # Median filter applied on image histogram to discard non-tissue sub-patches
+                counts, bins = np.histogram(patch.flatten(), list(range(256 + 1)))
+                counts.sort()
+                median = np.median(counts)
+                if median <= 3.:
+                    # Non-tissue sub-patches automatically get a null mask
+                    prediction_rs = np.zeros((dim, dim), dtype=np.uint8)
+                else:
+                    # Tissue sub-patches are fed to the U-net model for mask prediction
+                    patch = cv2.resize(patch, (PATCH_SIZE, PATCH_SIZE), interpolation=cv2.INTER_AREA)
+                    patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
+                    prediction = (model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)
+                    prediction_rs = cv2.resize(prediction[0], (dim, dim),
+                                               interpolation=cv2.INTER_AREA)
+
+                    # Final mask is composed by the sub-patches masks (boolean format)
+                mask[y:y + dim, x:x + dim] = np.logical_or(mask[y:y + dim, x:x + dim], prediction_rs.astype(np.bool))
+        return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
+
+    def run(self, train: bool, wfile: str):
+        for mask_size in self._mask_sizes:
+            for staining in self._stainings:
+                print_info("Testbench launched for mask_size = {} and staining = {}".format(mask_size, staining))
+                # 1. Prepare Dataset
+                dataset = Dataset(mask_size=mask_size, staining=staining)
+                xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
+
+                # 2. Prepare model
+                model, callbacks = self._prepare_model()
+                bname = staining + str(mask_size)
+                if wfile:
+                    weights_fname = os.path.join(self._weights_path, wfile)
+                else:
+                    weights_fname = self._weights_bname + bname + '.hdf5'
+
+                if train:
+                    # 2. Training stage
+                    history = model.fit(xtrain, ytrain, batch_size=_BATCH_SIZE, verbose=1, epochs=_EPOCHS,
+                                             validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
+                    model.save(weights_fname)
+                    self._save_results(history, bname)
+                    self.compute_IoU(xval, yval, model, th=PREDICTION_TH)
+                    self.save_random_prediction(xval, yval, model, bname)
+                else:
+                    # Load pre-trained weights
+                    model.load_weights(weights_fname)
+
+                # Test stage
+                ptest = self._prepare_test(xtest, model)  # Test predictions
+                test_list = dataset.get_data_list(set="test")
+                acc_proportion = self.count_segmented_glomeruli(ptest, test_list)
+                print_info("Segmented / Total = {}".format(acc_proportion))
+                # When a test ends, clear the model to avoid influence in next ones.
+                del model
+
+
+    def count_segmented_glomeruli(self, preds, test_list):
+        xml_list = [os.path.join(self._xml_path, i.split('.')[0] + ".xml") for i in test_list]
+        counter_total = 0
+        counter = 0
+        for pred, xml in zip(preds, xml_list):
+            points = get_points_from_xml(xml)
+            for (cx, cy) in points:
+                counter_total += 1
+                counter += 1 if pred[cy, cx] == 1 else 0
+        return counter / counter_total
+
+    def _save_results(self, history, bname):
         # 4. Show loss and accuracy results
         loss = history.history['loss']
         val_loss = history.history['val_loss']
@@ -77,7 +172,7 @@ class TestBench:
         plt.xlabel("Epochs")
         plt.ylabel("Loss")
         plt.legend()
-        plt.savefig(os.path.join(_OUTPUT_BASENAME, 'loss_' + self._file_bname + ".png"))
+        plt.savefig(os.path.join(_OUTPUT_BASENAME, 'loss_' + bname + ".png"))
 
         acc = history.history['accuracy']
         val_acc = history.history['val_accuracy']
@@ -88,24 +183,24 @@ class TestBench:
         plt.xlabel("Epochs")
         plt.ylabel("Accuracy")
         plt.legend()
-        plt.savefig(os.path.join(_OUTPUT_BASENAME, 'acc_' + self._file_bname + ".png"))
+        plt.savefig(os.path.join(_OUTPUT_BASENAME, 'acc_' + bname + ".png"))
         # plt.show()
 
-    def compute_IoU(self, xtest, ytest, model):
+    def compute_IoU(self, xtest, ytest, model, th: float = PREDICTION_TH):
         ypred = model.predict(xtest)
-        ypred_th = ypred > 0.3
+        ypred_th = ypred > th
         intersection = np.logical_and(ytest, ypred_th)
         union = np.logical_or(ytest, ypred_th)
         iou_score = np.sum(intersection) / np.sum(union)
         print("IoU score is ", iou_score)
 
-    def save_random_prediction(self, xtest, ytest):
+    def save_random_prediction(self, xtest, ytest, model, bname):
         test_img_number = random.randint(0, len(xtest)-1)
         test_img = xtest[test_img_number]
         ground_truth = ytest[test_img_number]
         test_img_norm = test_img[:, :, 0][:, :, None]
         test_img_input = np.expand_dims(test_img_norm, 0)
-        prediction = (self.model.predict(test_img_input)[0, :, :, 0] > 0.5).astype(np.uint8)
+        prediction = (model.predict(test_img_input)[0, :, :, 0] > PREDICTION_TH).astype(np.uint8)
 
         plt.figure()
         plt.subplot(131)
@@ -117,7 +212,7 @@ class TestBench:
         plt.subplot(133)
         plt.title('Prediction on test image')
         plt.imshow(prediction, cmap="gray")
-        plt.savefig(os.path.join(_OUTPUT_BASENAME, 'pred_' + self._file_bname + ".png"))
+        plt.savefig(os.path.join(_OUTPUT_BASENAME, 'pred_' + bname + ".png"))
 
     def compare(self):
         # TODO: complete
@@ -125,10 +220,8 @@ class TestBench:
 
 
 if __name__ == '__main__':
-    masks_paths = [_DATASET_PATH + '/masks_200']
-    resize_factors = list(range(4, 6, 1))
-
-    # resize_factors = [5, 7]  # Debug
+    masks_sizes = [150]
+    stainings = ["HE"]
     limit_samples = None
-    testbench = TestBench(masks_paths, resize_factors, limit_samples=limit_samples, staining="HE")
-    testbench.run(save=True)
+    testbench = TestBench(mask_sizes=masks_sizes, stainings=stainings)
+    testbench.run(train=False, wfile='weights_200_4.hdf5')

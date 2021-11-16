@@ -30,6 +30,9 @@ class Dataset():
         self._train_val_ims_path = _DATASET_PATH + '/train_val/patches'
         self._train_val_masks_path = _DATASET_PATH + '/train_val/patches_masks'
 
+        self.trainval_list = []
+        self.test_list = []
+
         # Variables
         self._staining = staining
         self._mask_size = mask_size
@@ -45,22 +48,22 @@ class Dataset():
     def split_trainval_test(self, train_size: float, overwrite: bool = True):
         if not overwrite:
             print_info("Split previously done. Reading from file...")
-            train_val_list = self.txt2list(self._train_val_file)
-            test_list = self.txt2list(self._test_file)
-            xtrainval = [os.path.join(self._ims_path, i) for i in train_val_list]
-            ytrainval = [os.path.join(self._masks_path, i) for i in train_val_list]
-            xtest = [os.path.join(self._ims_path, i) for i in test_list]
-            ytest = [os.path.join(self._masks_path, i) for i in test_list]
-            return xtrainval, ytrainval, xtest, ytest
+            self.trainval_list = self.txt2list(self._train_val_file)
+            self.test_list = self.txt2list(self._test_file)
+            xtrainval = [os.path.join(self._ims_path, i) for i in self.train_val_list]
+            ytrainval = [os.path.join(self._masks_path, i) for i in self.train_val_list]
+            xtest = [os.path.join(self._ims_path, i) for i in self.test_list]
+            ytest = [os.path.join(self._masks_path, i) for i in self.test_list]
         else:
             xtrainval, xtest, ytrainval, ytest = train_test_split(self.ims_list, self.masks_list,
                                                                   train_size=train_size, shuffle=True)
             print_info("Overwriting new split.")
-            trainval_names = [os.path.basename(i) for i in xtrainval]
-            test_names = [os.path.basename(i) for i in xtest]
-            self.list2txt(self._train_val_file, trainval_names)
-            self.list2txt(self._test_file, test_names)
-            return xtrainval, xtest, ytrainval, ytest
+            self.trainval_list = [os.path.basename(i) for i in xtrainval]
+            self.test_list = [os.path.basename(i) for i in xtest]
+            self.list2txt(self._train_val_file, self.trainval_list)
+            self.list2txt(self._test_file, self.test_list)
+        print_info("{} images for Train/Validation and {} for testing".format(len(xtrainval), len(xtest)))
+        return xtrainval, xtest, ytrainval, ytest
 
     def split_train_val(self, ims, masks, test_size: float = 0.1):
         xtrain, xval, ytrain, yval = train_test_split(ims, masks, test_size=test_size, shuffle=False)
@@ -94,14 +97,14 @@ class Dataset():
         patches = []
         patches_masks = []
         if from_disk:
-            print_info("Loading sub-patches pairs from disk...")
+            print_info("Loading sub-patches pairs for training stage from disk...")
             patches_files = glob.glob(self._train_val_ims_path + '/*')
             patches_masks_files = glob.glob(self._train_val_masks_path + '/*')
             patches, patches_masks = self.load_pairs(patches_files, patches_masks_files)
         else:
-            print_info("Generating sub-patches and saving to disk...")
+            print_info("Generating sub-patches for training stage and saving to disk...")
             patch_size_or = _UNET_INPUT_SIZE * rz_ratio
-            for im, mask in tqdm(zip(data, data_masks), total=len(ims), desc = "Generating subpatches"):
+            for im, mask in tqdm(zip(data, data_masks), total=len(data), desc = "Generating subpatches"):
                 [h, w] = im.shape
                 for x in range(0, w, patch_size_or):
                     if x+patch_size_or >= w:
@@ -122,6 +125,9 @@ class Dataset():
 
         print_info("Training+Validation set size: {}".format(len(patches)))
         return self._normalize(patches, patches_masks)
+
+    def get_data_list(self, set: str):
+        return eval("self." + set + "_list")
 
     # PRIVATE
     def _load_masks(self):
@@ -177,22 +183,22 @@ class Dataset():
 
 
 # Testing
-# if __name__ == '__main__':
-#     print_info("Building dataset...")
-#     dataset = Dataset(staining="HE")
-#     xtrainval, xtest, ytrainval, ytest = dataset.split_trainval_test(train_size=0.9)
-#     print_info("Train/Validation set size: {}".format(len(xtrainval)))
-#     print_info("Test set size: {}".format(len(xtest)))
-#     ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=0.1)
-#     print_info("Plotting sample:")
-#     idx = random.randint(0, len(ims)-1)
-#     plt.imshow(ims[idx], cmap="gray")
-#     plt.imshow(masks[idx], cmap="jet", alpha=0.3)
-#     plt.show()
-#     x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=4, from_disk=True)
-#     print(x_t.shape, y_t.shape)
-#     xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
-#     print(xtrain.shape, xval.shape)
+if __name__ == '__main__':
+    print_info("Building dataset...")
+    dataset = Dataset(staining="HE")
+    xtrainval, xtest, ytrainval, ytest = dataset.split_trainval_test(train_size=0.9)
+    print_info("Train/Validation set size: {}".format(len(xtrainval)))
+    print_info("Test set size: {}".format(len(xtest)))
+    ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=0.1)
+    print_info("Plotting sample:")
+    idx = random.randint(0, len(ims)-1)
+    plt.imshow(ims[idx], cmap="gray")
+    plt.imshow(masks[idx], cmap="jet", alpha=0.3)
+    plt.show()
+    x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=4, from_disk=True)
+    print(x_t.shape, y_t.shape)
+    xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
+    print(xtrain.shape, xval.shape)
 
 
 

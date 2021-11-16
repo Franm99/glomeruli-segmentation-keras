@@ -10,8 +10,10 @@ import matplotlib.pyplot as plt
 from typing import List, Optional
 
 PATCH_SIZE = 256
-IMGS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_ims"
-MASKS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_masks"
+# IMGS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_ims"
+# MASKS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_masks"
+IMGS_PATH = "D:/DataGlomeruli/patches_ims"
+MASKS_PATH = "D:/DataGlomeruli/patches_masks"
 
 
 def show_ims(imgs: List[np.ndarray],
@@ -53,7 +55,7 @@ def get_model():
 
 if __name__ == '__main__':
     model = get_model()
-    weights_file = "last.hdf5"
+    weights_file = "last_37.hdf5"
     model.load_weights(weights_file)
 
     ims = load_data(IMGS_PATH)
@@ -63,17 +65,18 @@ if __name__ == '__main__':
     masks = np.expand_dims(normalize(np.array(masks), axis=1), 3)
 
     ypred = model.predict(ims)
+    ypred_th = ypred > 0.5
 
     while True:
         indexes = random.sample(range(len(ypred)), 4)
         ims_sample = [ims[index] for index in indexes]
         masks_sample = [masks[index] for index in indexes]
         pred_sample = [ypred[index] for index in indexes]
-        show_ims(ims_sample+masks_sample+pred_sample, 3, 4)
+        predth_sample = [ypred_th[index] for index in indexes]
+        show_ims(ims_sample+masks_sample+pred_sample+predth_sample, 4, 4)
         plt.close()
 
 
-    ypred_th = ypred > 0.5
 
     intersection = np.logical_and(masks, ypred_th)
     union = np.logical_or(masks, ypred_th)

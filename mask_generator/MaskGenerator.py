@@ -7,16 +7,10 @@ import glob
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 from enum import Enum, auto
-from utils import print_info
+from utils import get_points_from_xml, print_info, MaskType
 
 DATA_PATH = "D:/DataGlomeruli"
 IMAGE_SIZE = (3200, 3200)  # Width, Height
-
-
-class MaskType(Enum):
-    """Type of masks to generate."""
-    CIRCULAR = auto()
-    BBOX = auto()
 
 
 class MaskGenerator:
@@ -47,23 +41,11 @@ class MaskGenerator:
         for xml_file, im_file in tqdm(zip(self._xml_file_list, self._ims_file_list),
                                       total=len(self._ims_file_list), desc="Generating masks"):
             # TODO: deal with the case where r is None (more than one radius)
-            points = self._get_points_from_xml(xml_file)
+            points = get_points_from_xml(xml_file)
             mask = self._get_mask(points)
             # self._plot_sample(im_file, mask)  # DEBUG
             self._save_im(mask, im_file)
         return glob.glob(self._masks + '/*.png')
-
-    @staticmethod
-    def _get_points_from_xml(xml_file: str) -> List[Tuple[int, int]]:
-        # TODO: modify: use glomeruli type information
-        with open(xml_file, 'r') as f:
-            data = f.read()
-        bs_data = BeautifulSoup(data, "xml")
-        point_fields = bs_data.find_all('point')
-        p = []
-        for link in point_fields:
-            p.append((int(link.get('X')), int(link.get('Y'))))
-        return p
 
     def _get_mask(self, cs: List[Tuple[int, int]]) -> np.ndarray:
         # TODO: modify: use glomeruli type information
