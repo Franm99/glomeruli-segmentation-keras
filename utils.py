@@ -9,6 +9,8 @@ from scipy.spatial import distance
 from scipy.optimize import linprog
 
 
+# ---- CLASSES ----
+
 class MaskType(Enum):
     """Type of masks to generate."""
     CIRCULAR = auto()
@@ -40,6 +42,8 @@ GlomeruliClass = {
     "ESCLEROSADO": Size.SMALL.value
 }
 
+
+# ---- FUNCTIONS ----
 
 def get_data_from_xml(xml_file: str, apply_simplex: bool) -> Dict[int, List[Tuple[int, int]]]:
     """ Read data from glomeruli xml file.

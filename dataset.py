@@ -1,6 +1,5 @@
 import os
 import glob
-from typing import List, Optional
 from mask_generator.MaskGenerator import MaskGenerator
 from sklearn.model_selection import train_test_split
 from utils import print_info, print_error, timer
@@ -11,25 +10,21 @@ import random
 import numpy as np
 from PIL import Image
 from tensorflow.keras.utils import normalize
-
-_UNET_INPUT_SIZE = 256
-_DATASET_PATH = 'D:/DataGlomeruli'
-_DEF_TRAIN_SIZE = 0.8
-_DEF_STAINING = 'HE'
+import constants as ct
 
 
 class Dataset():
-    def __init__(self, staining: str = _DEF_STAINING):
+    def __init__(self, staining: str = ct._DEF_STAINING):
         """ Initialize Dataset.
         Paths initialization to find data in disk. Images and ground-truth masks full-paths are loaded."""
         # Paths
-        self._ims_path = _DATASET_PATH + '/ims'
-        self._xmls_path = _DATASET_PATH + '/xml'
-        self._masks_path = _DATASET_PATH + '/gt' + '/circles'
-        self._train_val_file = _DATASET_PATH + '/train_val.txt'
-        self._test_file = _DATASET_PATH + '/test.txt'
-        self._train_val_ims_path = _DATASET_PATH + '/train_val/patches'
-        self._train_val_masks_path = _DATASET_PATH + '/train_val/patches_masks'
+        self._ims_path = ct.DATASET_PATH + '/ims'
+        self._xmls_path = ct.DATASET_PATH + '/xml'
+        self._masks_path = ct.DATASET_PATH + '/gt' + '/circles'
+        self._train_val_file = ct.DATASET_PATH + '/train_val.txt'
+        self._test_file = ct.DATASET_PATH + '/test.txt'
+        self._train_val_ims_path = ct.DATASET_PATH + '/train_val/patches'
+        self._train_val_masks_path = ct.DATASET_PATH + '/train_val/patches_masks'
 
         self._staining = staining
         self.trainval_list = []
@@ -79,7 +74,7 @@ class Dataset():
             y = y[0:last]
 
         for im_name, mask_name in tqdm(zip(x, y), total=len(x), desc="Loading images and masks pairs"):
-            im = cv2.imread(im_name, cv2.IMREAD_GRAYSCALE)  # TODO: Also test with RGB or HSV format
+            im = cv2.imread(im_name, cv2.IMREAD_GRAYSCALE)
             mask = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
             ims.append(im)
             masks.append(mask)
@@ -101,7 +96,7 @@ class Dataset():
             patches, patches_masks = self.load_pairs(patches_files, patches_masks_files)
         else:
             print_info("Generating sub-patches for training stage and saving to disk...")
-            patch_size_or = _UNET_INPUT_SIZE * rz_ratio
+            patch_size_or = ct._UNET_INPUT_SIZE * rz_ratio
             for im, mask in tqdm(zip(data, data_masks), total=len(data), desc = "Generating subpatches"):
                 [h, w] = im.shape
                 for x in range(0, w, patch_size_or):
@@ -114,8 +109,8 @@ class Dataset():
                         mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
                         if self._filter(mask_arr):
                             # Convert to PIL for resizing and returning to numpy array format.
-                            patch = np.asarray(Image.fromarray(patch_arr).resize((_UNET_INPUT_SIZE, _UNET_INPUT_SIZE)))
-                            patch_mask = np.asarray(Image.fromarray(mask_arr).resize((_UNET_INPUT_SIZE, _UNET_INPUT_SIZE)))
+                            patch = np.asarray(Image.fromarray(patch_arr).resize((ct._UNET_INPUT_SIZE, ct._UNET_INPUT_SIZE)))
+                            patch_mask = np.asarray(Image.fromarray(mask_arr).resize((ct._UNET_INPUT_SIZE, ct._UNET_INPUT_SIZE)))
                             patches.append(patch)
                             patches_masks.append(patch_mask)
             # Save train dataset to disk for later use
