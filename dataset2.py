@@ -13,29 +13,27 @@ from PIL import Image
 from tensorflow.keras.utils import normalize
 
 _UNET_INPUT_SIZE = 256
-_DEF_MASK_SIZE = 150
 _DATASET_PATH = 'D:/DataGlomeruli'
 _DEF_TRAIN_SIZE = 0.8
 _DEF_STAINING = 'HE'
 
 
 class Dataset():
-    def __init__(self, mask_size: int = _DEF_MASK_SIZE, staining: str = _DEF_STAINING):
+    def __init__(self, staining: str = _DEF_STAINING):
+        """ Initialize Dataset.
+        Paths initialization to find data in disk. Images and ground-truth masks full-paths are loaded."""
         # Paths
         self._ims_path = _DATASET_PATH + '/ims'
         self._xmls_path = _DATASET_PATH + '/xml'
-        self._masks_path = _DATASET_PATH + '/gt' + '/circles' + str(mask_size)
+        self._masks_path = _DATASET_PATH + '/gt' + '/circles'
         self._train_val_file = _DATASET_PATH + '/train_val.txt'
         self._test_file = _DATASET_PATH + '/test.txt'
         self._train_val_ims_path = _DATASET_PATH + '/train_val/patches'
         self._train_val_masks_path = _DATASET_PATH + '/train_val/patches_masks'
 
+        self._staining = staining
         self.trainval_list = []
         self.test_list = []
-
-        # Variables
-        self._staining = staining
-        self._mask_size = mask_size
 
         # List of data paths (instead of numpy arrays)
         if self._staining == "ALL":
@@ -50,8 +48,8 @@ class Dataset():
             print_info("Split previously done. Reading from file...")
             self.trainval_list = self.txt2list(self._train_val_file)
             self.test_list = self.txt2list(self._test_file)
-            xtrainval = [os.path.join(self._ims_path, i) for i in self.train_val_list]
-            ytrainval = [os.path.join(self._masks_path, i) for i in self.train_val_list]
+            xtrainval = [os.path.join(self._ims_path, i) for i in self.trainval_list]
+            ytrainval = [os.path.join(self._masks_path, i) for i in self.trainval_list]
             xtest = [os.path.join(self._ims_path, i) for i in self.test_list]
             ytest = [os.path.join(self._masks_path, i) for i in self.test_list]
         else:
@@ -133,7 +131,7 @@ class Dataset():
     def _load_masks(self):
         # Check for existing masks folder for desired size
         if not os.path.isdir(self._masks_path):
-            maskGenerator = MaskGenerator(r=self._mask_size)
+            maskGenerator = MaskGenerator()
             return maskGenerator.get_masks_files()
         return glob.glob(self._masks_path + '/*.png')
 

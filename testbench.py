@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 from dataset2 import Dataset
-from utils import get_points_from_xml, print_info
+from utils import get_data_from_xml, print_info
 import cv2.cv2 as cv2
 from tqdm import tqdm
 
@@ -32,10 +32,8 @@ def get_model():
 
 
 class TestBench:
-    def __init__(self, mask_sizes: List[int], stainings: List[str],
-                 limit_samples: Optional[float] = None):
+    def __init__(self, stainings: List[str], limit_samples: Optional[float] = None):
         """ Initialize class variables and main paths. """
-        self._mask_sizes = mask_sizes
         self._stainings = stainings
         self._limit_samples = limit_samples
 
@@ -44,13 +42,13 @@ class TestBench:
         self._weights_bname = self._weights_path + '/weights_'
         self._xml_path = _DATASET_PATH + '/xml'
 
-    def _prepare_data(self, dataset):
+    def _prepare_data(self, dataset: Dataset):
         print_info("Building dataset...")
         xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=0.9)
         print_info("Loading Training and Validation images...")
-        ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=DEBUG_LIMIT)
+        ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=self._limit_samples)
         print_info("Loading Testing images...")
-        xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=DEBUG_LIMIT)
+        xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
         x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=_DEF_RZ_RATIO, from_disk=True)
         xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
         return xtrain, xval, xtest, ytrain, yval, ytest
@@ -105,59 +103,57 @@ class TestBench:
                     patch = cv2.resize(patch, (PATCH_SIZE, PATCH_SIZE), interpolation=cv2.INTER_AREA)
                     patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                     prediction = (model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)
-                    prediction_rs = cv2.resize(prediction[0], (dim, dim),
-                                               interpolation=cv2.INTER_AREA)
+                    prediction_rs = cv2.resize(prediction[0], (dim, dim), interpolation=cv2.INTER_AREA)
 
-                    # Final mask is composed by the sub-patches masks (boolean format)
+                    # Final mask is composed by the sub-patches masks (boolean array)
                 mask[y:y + dim, x:x + dim] = np.logical_or(mask[y:y + dim, x:x + dim], prediction_rs.astype(np.bool))
         return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
 
-    def run(self, train: bool, wfile: str):
-        for mask_size in self._mask_sizes:
-            for staining in self._stainings:
-                print_info("Testbench launched for mask_size = {} and staining = {}".format(mask_size, staining))
-                # 1. Prepare Dataset
-                dataset = Dataset(mask_size=mask_size, staining=staining)
-                xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
+    def run(self, train: bool, wfile: Optional[str]):
+        for staining in self._stainings:
+            print_info("Testbench launched for {} staining".format(staining))
+            # 1. Prepare Dataset
+            dataset = Dataset(staining=staining)
+            xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
 
-                # 2. Prepare model
-                model, callbacks = self._prepare_model()
-                bname = staining + str(mask_size)
-                if wfile:
-                    weights_fname = os.path.join(self._weights_path, wfile)
-                else:
-                    weights_fname = self._weights_bname + bname + '.hdf5'
+            # 2. Prepare model
+            model, callbacks = self._prepare_model()
+            if wfile:
+                weights_fname = os.path.join(self._weights_path, wfile)
+            else:
+                weights_fname = self._weights_bname + staining + '.hdf5'
 
-                if train:
-                    # 2. Training stage
-                    history = model.fit(xtrain, ytrain, batch_size=_BATCH_SIZE, verbose=1, epochs=_EPOCHS,
-                                             validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
-                    model.save(weights_fname)
-                    self._save_results(history, bname)
-                    self.compute_IoU(xval, yval, model, th=PREDICTION_TH)
-                    self.save_random_prediction(xval, yval, model, bname)
-                else:
-                    # Load pre-trained weights
-                    model.load_weights(weights_fname)
+            if train:
+                # 3. Training stage
+                history = model.fit(xtrain, ytrain, batch_size=_BATCH_SIZE, verbose=1, epochs=_EPOCHS,
+                                         validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
+                model.save(weights_fname)
+                self._save_results(history, staining)
+                self.compute_IoU(xval, yval, model, th=PREDICTION_TH)
+                self.save_random_prediction(xval, yval, model, staining)
+            else:
+                # Load pre-trained weights
+                model.load_weights(weights_fname)
 
-                # Test stage
-                ptest = self._prepare_test(xtest, model)  # Test predictions
-                test_list = dataset.get_data_list(set="test")
-                acc_proportion = self.count_segmented_glomeruli(ptest, test_list)
-                print_info("Segmented / Total = {}".format(acc_proportion))
-                # When a test ends, clear the model to avoid influence in next ones.
-                del model
-
+            # 4. Test stage
+            ptest = self._prepare_test(xtest, model)  # Test predictions
+            test_list = dataset.get_data_list(set="test")
+            acc_proportion = self.count_segmented_glomeruli(ptest, test_list)
+            print_info("Segmented / Total = {}".format(acc_proportion))
+            # When a test ends, clear the model to avoid influence in next ones.
+            del model
 
     def count_segmented_glomeruli(self, preds, test_list):
         xml_list = [os.path.join(self._xml_path, i.split('.')[0] + ".xml") for i in test_list]
         counter_total = 0
         counter = 0
         for pred, xml in zip(preds, xml_list):
-            points = get_points_from_xml(xml)
-            for (cx, cy) in points:
-                counter_total += 1
-                counter += 1 if pred[cy, cx] == 1 else 0
+            data = get_data_from_xml(xml)
+            for r in data.keys():
+                points = data[r]
+                for (cx, cy) in points:
+                    counter_total += 1
+                    counter += 1 if pred[cy, cx] == 1 else 0
         return counter / counter_total
 
     def _save_results(self, history, bname):
@@ -219,9 +215,15 @@ class TestBench:
         pass
 
 
-if __name__ == '__main__':
-    masks_sizes = [150]
-    stainings = ["HE"]
+def Train():
+    stainings = ["HE", "PAS", "PM", "ALL"]
     limit_samples = None
-    testbench = TestBench(mask_sizes=masks_sizes, stainings=stainings)
+    testbench = TestBench(stainings=stainings)
+    testbench.run(train=True)
+
+
+if __name__ == '__main__':
+    stainings = ["HE", "PAS", "PM", "ALL"]
+    limit_samples = None
+    testbench = TestBench(stainings=stainings)
     testbench.run(train=False, wfile='weights_200_4.hdf5')
