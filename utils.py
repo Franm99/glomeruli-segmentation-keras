@@ -5,6 +5,8 @@ import math
 import time
 from bs4 import BeautifulSoup
 from enum import Enum, auto
+from scipy.spatial import distance
+from scipy.optimize import linprog
 
 
 class MaskType(Enum):
@@ -14,9 +16,9 @@ class MaskType(Enum):
 
 
 class Size(Enum):  # Pixels for radius
-    HUGE = 200
-    BIG = 150
-    MEDIUM = 125
+    HUGE = 225
+    BIG = 175
+    MEDIUM = 150
     SMALL = 100
 
 
@@ -39,7 +41,7 @@ GlomeruliClass = {
 }
 
 
-def get_points_from_xml(xml_file: str) -> Dict[int, List[Tuple[int, int]]]:
+def get_data_from_xml(xml_file: str, apply_simplex: bool) -> Dict[int, List[Tuple[int, int]]]:
     """ Read data from glomeruli xml file.
     Data to extract: Glomeruli class and coordinates of each occurrence.
     """
@@ -48,7 +50,7 @@ def get_points_from_xml(xml_file: str) -> Dict[int, List[Tuple[int, int]]]:
     bs_data = BeautifulSoup(data, "xml")
     counts = bs_data.find("Counts").find_all("Count")
     glomeruli = {x.value: [] for x in Size}
-    print(counts)  # DEBUG
+    # print(counts)  # DEBUG
     for count in counts:
         name = count.get('name')
         points = count.find_all('point')
@@ -56,7 +58,58 @@ def get_points_from_xml(xml_file: str) -> Dict[int, List[Tuple[int, int]]]:
         for point in points:
             p.append((int(point.get('X')), int(point.get('Y'))))
         glomeruli[GlomeruliClass[name]].extend(p)
+    if apply_simplex:
+        glomeruli = simplex(glomeruli)
     return glomeruli
+
+
+def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int, int]]]:
+    """ Apply simplex algorithm to avoid masks overlap.
+     Simplex algorithm: https://docs.scipy.org/doc/scipy/reference/optimize.linprog-simplex.html"""
+    # Compute D2: size limits for each point (i.e., data key)
+    D2 = np.asarray([size for size in data.keys() for _ in range(len(data[size]))])
+    # Compute X: Set of points. Format: [xc', yc']
+    X = np.asarray([i for size in data.keys() for i in data[size]]) # Set of points
+    N = len(X)
+    # Compute D1: Distance between each points pair
+    D1 = distance.pdist(X, metric='euclidean')
+
+    # Lower triangle
+    M = np.zeros((N, N), dtype=D1.dtype)
+    # Operations to maintain same format as in MATLAB
+    (rows_idx, cols_idx) = np.tril_indices(N, k=-1)
+    arrlinds = cols_idx.argsort()
+    srows_idx, scols_idx = rows_idx[arrlinds], cols_idx[arrlinds]
+    M[srows_idx, scols_idx] = D1
+
+    # Prepare V
+    fil = len(D1)
+    V = np.zeros((fil, N))
+    ct = 0
+    for j in range(N):
+        for i in range(N):
+            if M[i, j] != 0:
+                V[ct, i] = 1
+                V[ct, j] = 1
+                ct += 1
+
+    # f: function to minimize
+    f = np.ones((N, 1)) * 2 * np.pi
+    A = np.eye(N)
+    A = np.concatenate((A, V), axis=0)
+    B = np.concatenate((D2.T, D1.T), axis=0)
+
+    res = linprog(-f, A, B, method="simplex")
+    nlims = res.x.astype(np.int)
+
+    # Update data dictionary with new mask sizes
+    for idx, (plim, nlim) in enumerate(zip(D2, nlims)):
+        if plim != nlim:
+            point = data[plim].pop(0)
+            if nlim not in data.keys():
+                data[nlim] = []
+            data[nlim].append(point)
+    return data
 
 
 def timer(f):
@@ -191,11 +244,14 @@ def print_error(msg):
 #     t = Test()
 #     t.testf(2)
 
-# # Testing xml extractor
+# Testing xml extractor
 # if __name__ == '__main__':
 #     dpath = "D:\\DataGlomeruli\\xml"
 #     import os, glob, random
 #
-#     i = random.randint(0, len(os.listdir(dpath)) - 1)
+#     # i = random.randint(0, len(os.listdir(dpath)) - 1)
+#     i = 495
+#     print("------", i)
 #     f = glob.glob(dpath + '/*')[i]
-#     print(get_points_from_xml(f))
+#     data = get_data_from_xml(f)
+#     simplex(data)
