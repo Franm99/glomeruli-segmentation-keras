@@ -1,29 +1,24 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2.cv2 as cv2
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Dict
 import os
 import glob
-from bs4 import BeautifulSoup
 from tqdm import tqdm
-from enum import Enum, auto
-from utils import get_points_from_xml, print_info, MaskType
+from utils import get_data_from_xml, print_info, MaskType
 
 DATA_PATH = "D:/DataGlomeruli"
 IMAGE_SIZE = (3200, 3200)  # Width, Height
 
 
 class MaskGenerator:
-    def __init__(self, r: Optional[int], mask_type: MaskType = MaskType.CIRCULAR):
-        self._r = r
+    def __init__(self, mask_type: MaskType = MaskType.CIRCULAR):
         self._mask_type = mask_type
         self._ims = DATA_PATH + '/ims'
         self._glomeruli_coords = DATA_PATH + '/xml'
 
         if mask_type == MaskType.CIRCULAR:
             self._masks = DATA_PATH + '/gt/circles'
-            if r:
-                self._masks = self._masks + str(r)
         else:
             self._masks = DATA_PATH + 'gt/bboxes'
 
@@ -40,36 +35,34 @@ class MaskGenerator:
         print_info("Generating masks for groundtruth...")
         for xml_file, im_file in tqdm(zip(self._xml_file_list, self._ims_file_list),
                                       total=len(self._ims_file_list), desc="Generating masks"):
-            # TODO: deal with the case where r is None (more than one radius)
-            points = get_points_from_xml(xml_file)
+            points = get_data_from_xml(xml_file, apply_simplex=True)
             mask = self._get_mask(points)
             # self._plot_sample(im_file, mask)  # DEBUG
             self._save_im(mask, im_file)
         return glob.glob(self._masks + '/*.png')
 
-    def _get_mask(self, cs: List[Tuple[int, int]]) -> np.ndarray:
-        # TODO: modify: use glomeruli type information
+    def _get_mask(self, data: Dict[int, List[Tuple[int, int]]]) -> np.ndarray:
         """
         Create a binary mask where circles (255) mark the position of glomeruli in image.
         Source:  https://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array/8650741
-        :param cs: List[(cy, cx)] Y and X coordinates of the circle (glomeruli) centre.
-        :return: binary mask with dimensions IMAGE_SIZE.
         """
         h, w = IMAGE_SIZE[1], IMAGE_SIZE[0]
         im_mask = np.zeros((h, w), dtype=np.uint8)
         if self._mask_type == MaskType.CIRCULAR:
-            for c in cs:
-                y, x = np.ogrid[-c[1]:h-c[1], -c[0]:w-c[0]]
-                cmask = x*x + y*y <= self._r * self._r
-                im_mask[cmask] = 255
-            return im_mask
-        else:
-            for c in cs:
-                sx, sy = int(c[0] - self._r/2), int(c[1] - self._r/2)
-                lx = sx + self._r if sx + self._r < w else w
-                ly = sy + self._r if sy + self._r < h else h
-                im_mask[max(0, sy):ly, max(0, sx):lx] = 255
-            return im_mask
+            for r in data.keys():
+                cs = data[r]
+                for c in cs:
+                    y, x = np.ogrid[-c[1]:h-c[1], -c[0]:w-c[0]]
+                    cmask = x*x + y*y <= r*r
+                    im_mask[cmask] = 255
+        return im_mask
+        # else:
+        #     for c in cs:
+        #         sx, sy = int(c[0] - self._r/2), int(c[1] - self._r/2)
+        #         lx = sx + self._r if sx + self._r < w else w
+        #         ly = sy + self._r if sy + self._r < h else h
+        #         im_mask[max(0, sy):ly, max(0, sx):lx] = 255
+        #     return im_mask
 
     def _save_im(self, mask, im_file) -> None:
         mask_name = os.path.basename(im_file)
@@ -86,10 +79,8 @@ class MaskGenerator:
         # plt.close()
 
 
-# if __name__ == '__main__':
-#     maskGenerator = MaskGenerator(mask_type=MaskType.CIRCULAR)
-#     radii = np.arange(150, 350, 50)
-#     for radius in tqdm(radii, desc="Masks folders"):
-#         maskGenerator.run(radius)
-#     # test()
+if __name__ == '__main__':
+    maskGenerator = MaskGenerator(mask_type=MaskType.CIRCULAR)
+    maskGenerator.get_masks_files()
+    # test()
 
