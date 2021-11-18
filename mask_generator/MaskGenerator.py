@@ -20,8 +20,8 @@ class MaskGenerator:
         else:
             self._masks = ct.DATASET_PATH + 'gt/bboxes'
 
-        self._xml_file_list = glob.glob(self._glomeruli_coords + '/*')
-        self._ims_file_list = glob.glob(self._ims + '/*')
+        self._xml_file_list = sorted(glob.glob(self._glomeruli_coords + '/*'))
+        self._ims_file_list = sorted(glob.glob(self._ims + '/*'))
 
         # Execute the mask generation process
         self._masks_file_list = self._run()
@@ -37,7 +37,7 @@ class MaskGenerator:
             mask = self._get_mask(points)
             # self._plot_sample(im_file, mask)  # DEBUG
             self._save_im(mask, im_file)
-        return glob.glob(self._masks + '/*.png')
+        return sorted(glob.glob(self._masks + '/*.png'))
 
     def _get_mask(self, data: Dict[int, List[Tuple[int, int]]]) -> np.ndarray:
         """

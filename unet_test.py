@@ -46,7 +46,7 @@ def show_ims(imgs: List[np.ndarray],
 
 
 def load_data(fpath: str):
-    return [cv2.imread(im, cv2.IMREAD_GRAYSCALE) for im in glob.glob(fpath + "/*")]
+    return [cv2.imread(im, cv2.IMREAD_GRAYSCALE) for im in sorted(glob.glob(fpath + "/*"))]
 
 
 def get_model():

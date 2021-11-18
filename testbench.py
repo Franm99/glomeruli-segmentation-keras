@@ -143,6 +143,10 @@ class TestBench:
                     counter += 1 if pred[cy, cx] == 1 else 0
         return counter / counter_total
 
+    def count_segmented_glomeruli_adv(self, preds, test_list):
+        pass
+        # TODO: fill using
+
     def _save_results(self, history, bname):
         # 4. Show loss and accuracy results
         loss = history.history['loss']
@@ -204,5 +208,38 @@ def Train():
     testbench.run(train=True, wfile=None)
 
 
+def test():
+    import glob
+    ims = sorted(glob.glob("D:/DataGlomeruli/gt/Circles/*"))
+    idx = random.randint(0, len(ims)-1)
+    print(idx)
+    im = cv2.imread(ims[idx], cv2.IMREAD_GRAYSCALE)
+
+    # Apply erosion
+    kernel = np.ones((5, 5), np.uint8)
+    im = cv2.erode(im, kernel, iterations=1)
+
+    # Count connected components
+    retval, labels, stats, centroids = cv2.connectedComponentsWithStats(im)
+
+    def imshow_components(labels, im):
+        label_hue = np.uint8(179*labels/np.max(labels))
+        blanck_ch = 255*np.ones_like(label_hue)
+        labeled_im = cv2.merge([label_hue, blanck_ch, blanck_ch])
+
+        labeled_im = cv2.cvtColor(labeled_im, cv2.COLOR_HSV2RGB)
+        labeled_im[label_hue==0] = 0
+        plt.figure()
+        plt.subplot(121)
+        plt.imshow(im, cmap="gray")
+        plt.subplot(122)
+        plt.imshow(labeled_im)
+        plt.show()
+
+    imshow_components(labels, im)
+    a=1
+
+
 if __name__ == '__main__':
     Train()
+    # test()

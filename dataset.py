@@ -32,10 +32,10 @@ class Dataset():
 
         # List of data paths (instead of numpy arrays)
         if self._staining == "ALL":
-            self.ims_list = glob.glob(self._ims_path + '/*')
+            self.ims_list = sorted(glob.glob(self._ims_path + '/*'))
             self.masks_list = self._load_masks()
         else:
-            self.ims_list = [i for i in glob.glob(self._ims_path + '/*') if self._staining in i]
+            self.ims_list = [i for i in sorted(glob.glob(self._ims_path + '/*')) if self._staining in i]
             self.masks_list = [i for i in self._load_masks() if self._staining in i]
 
     def split_trainval_test(self, train_size: float, overwrite: bool = True):
@@ -91,8 +91,8 @@ class Dataset():
         patches_masks = []
         if from_disk:
             print_info("Loading sub-patches pairs for training stage from disk...")
-            patches_files = glob.glob(self._train_val_ims_path + '/*')
-            patches_masks_files = glob.glob(self._train_val_masks_path + '/*')
+            patches_files = sorted(glob.glob(self._train_val_ims_path + '/*'))
+            patches_masks_files = sorted(glob.glob(self._train_val_masks_path + '/*'))
             patches, patches_masks = self.load_pairs(patches_files, patches_masks_files)
         else:
             print_info("Generating sub-patches for training stage and saving to disk...")
@@ -128,7 +128,7 @@ class Dataset():
         if not os.path.isdir(self._masks_path):
             maskGenerator = MaskGenerator()
             return maskGenerator.get_masks_files()
-        return glob.glob(self._masks_path + '/*.png')
+        return sorted(glob.glob(self._masks_path + '/*.png'))
 
     @staticmethod
     def _filter(patch: np.ndarray) -> bool:  # Modify: not include sub-patches without glomeruli
@@ -141,8 +141,8 @@ class Dataset():
 
     def _save_train_dataset(self, ims, masks):
         # Clear data if existing
-        prev_ims = glob.glob(self._train_val_ims_path + '/*')
-        prev_masks = glob.glob(self._train_val_masks_path + '/*')
+        prev_ims = sorted(glob.glob(self._train_val_ims_path + '/*'))
+        prev_masks = sorted(glob.glob(self._train_val_masks_path + '/*'))
         for im, mask in zip(prev_ims, prev_masks):
             try:
                 os.unlink(im)
