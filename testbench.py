@@ -36,7 +36,7 @@ class TestBench:
         ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=self._limit_samples)
         print_info("Loading Testing images...")
         xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
-        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=ct._DEF_RZ_RATIO, from_disk=True)
+        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=ct._DEF_RZ_RATIO, from_disk=False)
         xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
         return xtrain, xval, xtest, ytrain, yval, ytest
 
@@ -210,7 +210,8 @@ def Train():
 
 def test():
     import glob
-    ims = sorted(glob.glob("D:/DataGlomeruli/gt/Circles/*"))
+    ims = glob.glob("D:/DataGlomeruli/gt/Circles/*")
+    ims.sort()
     idx = random.randint(0, len(ims)-1)
     print(idx)
     im = cv2.imread(ims[idx], cv2.IMREAD_GRAYSCALE)

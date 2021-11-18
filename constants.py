@@ -12,7 +12,7 @@ DEBUG_LIMIT = None
 BATCH_SIZE = 16
 EPOCHS = 50
 OUTPUT_BASENAME = 'output'
-DATASET_PATH = 'D:/DataGlomeruli'  # Windows
-# DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
+# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 
