@@ -2,7 +2,7 @@ import os
 import glob
 from mask_generator.MaskGenerator import MaskGenerator
 from sklearn.model_selection import train_test_split
-from utils import print_info, print_error, timer
+from utils import print_info, print_warn, print_error, timer
 from tqdm import tqdm
 import cv2.cv2 as cv2
 import matplotlib.pyplot as plt
@@ -85,14 +85,10 @@ class Dataset():
 
     @timer
     def get_spatches(self, data, data_masks, rz_ratio: int, from_disk: bool = True):
-        """
-        Generate sub-patches from original patches. Needed to adjust data for U-Net input requirements.
-        :param rz_ratio: Resize ratio. Sub-patches can be taken from a resized version of the original patch.
-        :param save: If True, saves the set of sub-patches to disk.
-        """
         patches = []
         patches_masks = []
         if from_disk:
+            print_info("PATCHES ALREADY EXISTS IN DISK. ")
             print_info("Loading sub-patches pairs for training stage from disk...")
             patches_files = glob.glob(self._train_val_ims_path + '/*')
             patches_files.sort()
@@ -100,6 +96,7 @@ class Dataset():
             patches_masks_files.sort()
             patches, patches_masks = self.load_pairs(patches_files, patches_masks_files)
         else:
+            print_info("NO PATCHES HAVE BEEN FOUND IN DISK.")
             print_info("Generating sub-patches for training stage and saving to disk...")
             patch_size_or = ct.UNET_INPUT_SIZE * rz_ratio
             for im, mask in tqdm(zip(data, data_masks), total=len(data), desc = "Generating subpatches"):
@@ -121,20 +118,25 @@ class Dataset():
             # Save train dataset to disk for later use
             self._save_train_dataset(patches, patches_masks)
 
-        print_info("Training+Validation set size: {}".format(len(patches)))
+        print_info("{} patches generated from {} images for training and validation.".format(len(patches), len(data)))
         return self._normalize(patches, patches_masks)
 
     def get_data_list(self, set: str):
         return eval("self." + set + "_list")
 
     # PRIVATE
+    @timer
     def _load_masks(self):
         # Check for existing masks folder for desired size
+        print_info("Checking if ground-truth masks exists or either they need to be generated.")
         if not os.path.isdir(self._masks_path):
+            print_warn("MASKS DO NOT EXIST YET. GENERATING GROUND-TRUTH.")
             maskGenerator = MaskGenerator()
             return maskGenerator.get_masks_files()
         res = glob.glob(self._masks_path + '/*.png')
         res.sort()
+        print_info("TAKING GROUND-TRUTH MASKS FROM DISK.")
+        print_info("Masks located in: {}".format(self._masks_path))
         return res
 
     @staticmethod

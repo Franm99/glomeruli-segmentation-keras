@@ -1,3 +1,8 @@
+"""
+TODO list:
+- Redirect prints to a log file filtering just those with the "info", "warn" and "err" blueprints"
+"""
+
 from unet_model import unet_model
 from typing import List, Optional
 import os
@@ -24,46 +29,116 @@ class TestBench:
         """ Initialize class variables and main paths. """
         self._stainings = stainings
         self._limit_samples = limit_samples
-
-        # self._weights_path = DATASET_PATH + '/weights'
-        self._weights_path = 'weights'
-        self._weights_bname = self._weights_path + '/weights_'
         self._xml_path = ct.DATASET_PATH + '/xml'
+        self._ims_path = ct.DATASET_PATH + '/ims'
+        self._masks_path = ct.DATASET_PATH + '/gt'
+
+    def run(self):
+        for staining in self._stainings:
+            print_info("Testbench launched for {} staining".format(staining))
+            self._prepare_output()
+
+            # 1. Prepare Dataset
+            print_info("########## PREPARE DATASET ##########")
+            dataset = Dataset(staining=staining)
+            xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
+
+            # 2. Prepare model
+            print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
+            model, callbacks = self._prepare_model(save_logs=False)
+
+            # 3. TRAINING AND VALIDATION STAGE
+            print_info("########## TRAINING AND VALIDATION STAGE ##########")
+            print_info("Num epochs: {}".format(ct.EPOCHS))
+            print_info("Batch size: {}".format(ct.BATCH_SIZE))
+            print_info("Patience for Early Stopping: {}".format(ct.ES_PATIENCE))
+            print_info("STARTING TRAINING PROCESS:")
+            history = model.fit(xtrain, ytrain, batch_size=ct.BATCH_SIZE, verbose=1, epochs=ct.EPOCHS,
+                                validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
+            print_info("TRAINING PROCESS FINISHED.")
+            wfile = self.weights_path + '/model.hdf5'
+            print_info("Saving weights to: {}".format(wfile))
+            model.save(wfile)
+            print_info("Saving loss and accuracy results collected over epochs.")
+            self._save_results(history)
+            iou_score = self.compute_IoU(xval, yval, model, th=ct.DEF_PREDICTION_TH)
+            print_info("IoU from validation (threshold={}): {}".format(ct.DEF_PREDICTION_TH, iou_score))
+            print_info("Saving validation predictions (patches) to disk.")
+            # self._save_val_predictions(xval, model, dataset)  # TODO: Fix
+
+            # 4. VALIDATION STAGE
+            print_info("########## TESTING STAGE ##########")
+            print_info("Computing predictions for testing set:")
+            ptest = self._prepare_test(xtest, dataset.test_list, model)  # Test predictions
+            test_list = dataset.get_data_list(set="test")
+            count_ptg = self.count_segmented_glomeruli(ptest, test_list)
+            print_info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
+            self.save_train_log(history, iou_score, count_ptg)
+            # When a test ends, clear the model to avoid influence in next ones.
+            del model
+
+    def _prepare_output(self):
+        self.log_name = time.strftime("%Y%m%d-%H%M%S")
+        self.output_folder_path = os.path.join(ct.OUTPUT_BASENAME, self.log_name)
+        os.mkdir(self.output_folder_path)
+        self.weights_path = os.path.join(self.output_folder_path, 'model')
+        os.mkdir(self.weights_path)
+        self.pred_path = os.path.join(self.output_folder_path, 'prediction')
+        os.mkdir(self.pred_path)
+        self.logs_path = os.path.join(self.output_folder_path, 'logs')
+        os.mkdir(self.logs_path)
 
     def _prepare_data(self, dataset: Dataset):
-        print_info("Building dataset...")
-        xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=0.9)
-        print_info("Loading Training and Validation images...")
+        print_info("First split: Training+Validation & Testing split:")
+        xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=0.9, overwrite=True)
+
+        print_info("LOADING DATA FROM DISK FOR PROCEEDING TO TRAINING AND TEST:")
+        print_info("Loading images from: {}".format(self._ims_path))
+        print_info("Loading masks from: {}".format(self._masks_path))
+        print_info("Training and Validation:")
         ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=self._limit_samples)
-        print_info("Loading Testing images...")
+
+        print_info("Testing:")
         xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
+
+        print_info("DATA PREPROCESSING FOR TRAINING.")
         x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=ct.DEF_RZ_RATIO, from_disk=False)
+        print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
+
+        print_info("Second split: Training & Validation split:")
         xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
         return xtrain, xval, xtest, ytrain, yval, ytest
 
     def _prepare_model(self, save_logs: bool = ct.SAVE_TRAIN_LOGS, es_patience: int = ct.ES_PATIENCE):
         model = get_model()
-        # self._file_bname = mask_path.split('_')[-1] + '_' + str(resize_factor)
-        weights_backup = self._weights_path + '/backup.hdf5'
-        # weights_fname = _WEIGHTS_BASENAME + self._file_bname + '.hdf5'
+        weights_backup = self.weights_path + '/backup.hdf5'
         checkpoint_cb = cb.ModelCheckpoint(weights_backup, verbose=1, save_best_only=True)
         earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=es_patience)
         if save_logs:
-            tensorboard_cb = cb.TensorBoard(log_dir="./logs")
-            csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
+            tensorboard_cb = cb.TensorBoard(log_dir=self.logs_path)
+            csvlogger_cb = cb.CSVLogger(self.logs_path + 'log.csv', separator=',', append=False)
             callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb, csvlogger_cb]
         else:
             callbacks = [checkpoint_cb, earlystopping_cb]
+        print_info("Model callback functions for training:")
+        print_info("Checkpointer:       {}".format("Y"))
+        print_info("EarlyStopper:       {}".format("Y"))
+        print_info("TensorBoard logger: {}".format("Y" if save_logs else "N"))
+        print_info("CSV file logger:    {}".format("Y" if save_logs else "N"))
         return model, callbacks
 
-    def _prepare_test(self, ims, model):
+    def _prepare_test(self, ims, ims_names, model):
         predictions = []
         org_size = int(ct.UNET_INPUT_SIZE * ct.DEF_RZ_RATIO)
-        for im in tqdm(ims, desc="Computing predictions for test set"):
-            predictions.append(self._get_mask(im, org_size, model))
+        for im, im_name in tqdm(zip(ims, ims_names), total=len(ims), desc="Test predictions"):
+            pred = self._get_mask(im, org_size, model, th = ct.DEF_PREDICTION_TH)
+            predictions.append(pred)
+            im_path = os.path.join(self.pred_path, im_name)
+            cv2.imwrite(im_path, pred)
         return predictions
 
-    def _get_mask(self, im, dim, model, th: float = ct.DEF_PREDICTION_TH):
+    @staticmethod
+    def _get_mask(im, dim, model, th: float):
         """ """
         [h, w] = im.shape
         # Initializing list of masks
@@ -97,50 +172,6 @@ class TestBench:
                 mask[y:y + dim, x:x + dim] = np.logical_or(mask[y:y + dim, x:x + dim], prediction_rs.astype(bool))
         return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
 
-    def run(self, train: bool, wfile: Optional[str]):
-        for staining in self._stainings:
-            print_info("Testbench launched for {} staining".format(staining))
-            # 1. Prepare Dataset
-            dataset = Dataset(staining=staining)
-            xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
-
-            # 2. Prepare model
-            model, callbacks = self._prepare_model(save_logs=False)
-            if wfile:
-                weights_fname = os.path.join(self._weights_path, wfile)
-            else:
-                weights_fname = self._weights_bname + staining + '.hdf5'
-
-            history = None
-            if train:
-                # 3. Training stage
-                history = model.fit(xtrain, ytrain, batch_size=ct.BATCH_SIZE, verbose=1, epochs=ct.EPOCHS,
-                                         validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
-
-                # If weiths_fname exists, the name is modified to avoid overwriting
-                new = 1
-                new_name = weights_fname
-                while os.path.isfile(new_name):
-                    new_name = weights_fname[:-5] + str(new) + weights_fname[-5:]
-                    new += 1
-                weights_fname = new_name
-
-                model.save(weights_fname)
-                self._save_results(history, staining)
-                self.compute_IoU(xval, yval, model, th=ct.DEF_PREDICTION_TH)
-                self.save_random_prediction(xval, yval, model, staining)
-            else:
-                # Load pre-trained weights
-                model.load_weights(weights_fname)
-
-            # 4. Test stage  !! NOT WORKING
-            ptest = self._prepare_test(xtest, model)  # Test predictions
-            test_list = dataset.get_data_list(set="test")
-            iou_score = self.count_segmented_glomeruli(ptest, test_list)
-            self.save_train_log(history, iou_score)
-            # When a test ends, clear the model to avoid influence in next ones.
-            del model
-
     def count_segmented_glomeruli(self, preds, test_list):
         xml_list = [os.path.join(self._xml_path, i.split('.')[0] + ".xml") for i in test_list]
         counter_total = 0
@@ -158,31 +189,29 @@ class TestBench:
         pass
         # TODO: fill using
 
-    def _save_results(self, history, bname):
-        # 4. Show loss and accuracy results
+    def _save_results(self, history):
         loss = history.history['loss']
         val_loss = history.history['val_loss']
         epochs = range(1, len(loss) + 1)
         plt.figure()
         plt.plot(epochs, loss, 'y', label="Training_loss")
         plt.plot(epochs, val_loss, 'r', label="Validation loss")
-        plt.title("Training and validation loss")
+        plt.title("[{}] Training and validation loss".format(self.log_name))
         plt.xlabel("Epochs")
         plt.ylabel("Loss")
         plt.legend()
-        plt.savefig(os.path.join(ct.OUTPUT_BASENAME, 'loss_' + bname + ".png"))
+        plt.savefig(os.path.join(self.output_folder_path, "loss.png"))
 
         acc = history.history['accuracy']
         val_acc = history.history['val_accuracy']
         plt.figure()
         plt.plot(epochs, acc, 'y', label="Training_acc")
         plt.plot(epochs, val_acc, 'r', label="Validation_acc")
-        plt.title("Training and validation accuracy")
+        plt.title("[{}] Training and validation accuracy".format(self.log_name))
         plt.xlabel("Epochs")
         plt.ylabel("Accuracy")
         plt.legend()
-        plt.savefig(os.path.join(ct.OUTPUT_BASENAME, 'acc_' + bname + ".png"))
-        # plt.show()
+        plt.savefig(os.path.join(self.output_folder_path, "acc.png"))
 
     def compute_IoU(self, xtest, ytest, model, th: float = ct.DEF_PREDICTION_TH):
         ypred = model.predict(xtest)
@@ -192,28 +221,16 @@ class TestBench:
         iou_score = np.sum(intersection) / np.sum(union)
         print("IoU score is ", iou_score)
 
-    def save_random_prediction(self, xtest, ytest, model, bname):
-        test_img_number = random.randint(0, len(xtest)-1)
-        test_img = xtest[test_img_number]
-        ground_truth = ytest[test_img_number]
-        test_img_norm = test_img[:, :, 0][:, :, None]
-        test_img_input = np.expand_dims(test_img_norm, 0)
-        prediction = (model.predict(test_img_input)[0, :, :, 0] > ct.DEF_PREDICTION_TH).astype(np.uint8)
+    # def _save_val_predictions(self, xval, model), dataset:
+    #     for val_im, val_name in tqdm(xval, dataset.test_list), total=len(xtest), desc="Validation predictions"):
+    #         test_img_norm = test_img[:, :, 0][:, :, None]
+    #         test_img_input = np.expand_dims(test_img_norm, 0)
+    #         prediction = (model.predict(test_img_input)[0, :, :, 0] > ct.DEF_PREDICTION_TH).astype(np.uint8)
+    #         test_path = os.path.join(self.pred_path, test_name)
+    #         cv2.imwrite(test_path, prediction)
 
-        plt.figure()
-        plt.subplot(131)
-        plt.title('Testing image')
-        plt.imshow(test_img[:, :, 0], cmap="gray")
-        plt.subplot(132)
-        plt.title('Testing label')
-        plt.imshow(ground_truth[:, :, 0], cmap="gray")
-        plt.subplot(133)
-        plt.title('Prediction on test image')
-        plt.imshow(prediction, cmap="gray")
-        plt.savefig(os.path.join(ct.OUTPUT_BASENAME, 'pred_' + bname + ".png"))
-
-    def save_train_log(self, history, iou_score):
-        log_fname = os.path.join(ct.OUTPUT_BASENAME, time.strftime("%Y%m%d-%H%M%S") + '.txt')
+    def save_train_log(self, history, iou_score, count_ptg):
+        log_fname = os.path.join(self.output_folder_path, time.strftime("%Y%m%d-%H%M%S") + '.txt')
         with open(log_fname, 'w') as f:
             # Write parameters used
             f.write("TRAINING PARAMETERS\n")
@@ -226,27 +243,27 @@ class TestBench:
             f.write('EPOCHS={}\n'.format(ct.EPOCHS))
             f.write('ES_PATIENCE={}\n'.format(ct.ES_PATIENCE))
             f.write("--------------------------------------\n")
-            # Write training results if existing
-            if history:
-                f.write('TRAINING RESULTS\n')
-                loss = history.history['loss']
-                val_loss = history.history['val_loss']
-                acc = history.history['accuracy']
-                val_acc = history.history['val_accuracy']
-                f.write('TRAINING_LOSS={}\n'.format(str(loss)))
-                f.write('VALIDATION_LOSS={}\n'.format(str(val_loss)))
-                f.write('TRAINING_ACC={}\n'.format(str(acc)))
-                f.write('VALIDATION_ACC={}\n'.format(str(val_acc)))
-                f.write("--------------------------------------\n")
+            # Write training results
+            f.write('TRAINING RESULTS\n')
+            loss = history.history['loss']
+            val_loss = history.history['val_loss']
+            acc = history.history['accuracy']
+            val_acc = history.history['val_accuracy']
+            f.write('TRAINING_LOSS={}\n'.format(str(loss)))
+            f.write('VALIDATION_LOSS={}\n'.format(str(val_loss)))
+            f.write('TRAINING_ACC={}\n'.format(str(acc)))
+            f.write('VALIDATION_ACC={}\n'.format(str(val_acc)))
+            f.write('IoU_VAL_SCORE={}\n'.format(iou_score))
+            f.write("--------------------------------------\n")
             # write testing results
             f.write('TESTING RESULTS\n')
-            f.write('IoU_SCORE={}\n'.format(iou_score))
+            f.write('GLOMERULI_HIT_PERCENTAGE={}\n'.format(count_ptg))
 
 
 def Train():
     stainings = ["HE", "PAS", "PM", "ALL"]
     testbench = TestBench(stainings=stainings, limit_samples=ct.DEBUG_LIMIT)
-    testbench.run(train=True, wfile=None)
+    testbench.run()
 
 
 def test():
