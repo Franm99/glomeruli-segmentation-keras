@@ -11,11 +11,12 @@ from utils import get_data_from_xml, print_info
 import cv2.cv2 as cv2
 from tqdm import tqdm
 import constants as ct
+import time
 
 
 def get_model():
     """ return: U-Net model (TF2 version)"""
-    return unet_model(ct._UNET_INPUT_SIZE, ct._UNET_INPUT_SIZE, 1)
+    return unet_model(ct.UNET_INPUT_SIZE, ct.UNET_INPUT_SIZE, 1)
 
 
 class TestBench:
@@ -36,17 +37,17 @@ class TestBench:
         ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=self._limit_samples)
         print_info("Loading Testing images...")
         xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
-        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=ct._DEF_RZ_RATIO, from_disk=False)
+        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=ct.DEF_RZ_RATIO, from_disk=False)
         xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
         return xtrain, xval, xtest, ytrain, yval, ytest
 
-    def _prepare_model(self, save_logs=True):
+    def _prepare_model(self, save_logs: bool = ct.SAVE_TRAIN_LOGS, es_patience: int = ct.ES_PATIENCE):
         model = get_model()
         # self._file_bname = mask_path.split('_')[-1] + '_' + str(resize_factor)
         weights_backup = self._weights_path + '/backup.hdf5'
         # weights_fname = _WEIGHTS_BASENAME + self._file_bname + '.hdf5'
         checkpoint_cb = cb.ModelCheckpoint(weights_backup, verbose=1, save_best_only=True)
-        earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=2)
+        earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=es_patience)
         if save_logs:
             tensorboard_cb = cb.TensorBoard(log_dir="./logs")
             csvlogger_cb = cb.CSVLogger('logs/log.csv', separator=',', append=False)
@@ -57,12 +58,12 @@ class TestBench:
 
     def _prepare_test(self, ims, model):
         predictions = []
-        org_size = int(ct._UNET_INPUT_SIZE * ct._DEF_RZ_RATIO)
+        org_size = int(ct.UNET_INPUT_SIZE * ct.DEF_RZ_RATIO)
         for im in tqdm(ims, desc="Computing predictions for test set"):
             predictions.append(self._get_mask(im, org_size, model))
         return predictions
 
-    def _get_mask(self, im, dim, model, th: float = ct._DEF_PREDICTION_TH):
+    def _get_mask(self, im, dim, model, th: float = ct.DEF_PREDICTION_TH):
         """ """
         [h, w] = im.shape
         # Initializing list of masks
@@ -87,13 +88,13 @@ class TestBench:
                     prediction_rs = np.zeros((dim, dim), dtype=np.uint8)
                 else:
                     # Tissue sub-patches are fed to the U-net model for mask prediction
-                    patch = cv2.resize(patch, (ct._UNET_INPUT_SIZE, ct._UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
+                    patch = cv2.resize(patch, (ct.UNET_INPUT_SIZE, ct.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
                     patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                     prediction = (model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)
                     prediction_rs = cv2.resize(prediction[0], (dim, dim), interpolation=cv2.INTER_AREA)
 
                     # Final mask is composed by the sub-patches masks (boolean array)
-                mask[y:y + dim, x:x + dim] = np.logical_or(mask[y:y + dim, x:x + dim], prediction_rs.astype(np.bool))
+                mask[y:y + dim, x:x + dim] = np.logical_or(mask[y:y + dim, x:x + dim], prediction_rs.astype(bool))
         return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
 
     def run(self, train: bool, wfile: Optional[str]):
@@ -104,29 +105,39 @@ class TestBench:
             xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
 
             # 2. Prepare model
-            model, callbacks = self._prepare_model()
+            model, callbacks = self._prepare_model(save_logs=False)
             if wfile:
                 weights_fname = os.path.join(self._weights_path, wfile)
             else:
                 weights_fname = self._weights_bname + staining + '.hdf5'
 
+            history = None
             if train:
                 # 3. Training stage
                 history = model.fit(xtrain, ytrain, batch_size=ct.BATCH_SIZE, verbose=1, epochs=ct.EPOCHS,
                                          validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
+
+                # If weiths_fname exists, the name is modified to avoid overwriting
+                new = 1
+                new_name = weights_fname
+                while os.path.isfile(new_name):
+                    new_name = weights_fname[:-5] + str(new) + weights_fname[-5:]
+                    new += 1
+                weights_fname = new_name
+
                 model.save(weights_fname)
                 self._save_results(history, staining)
-                self.compute_IoU(xval, yval, model, th=ct._DEF_PREDICTION_TH)
+                self.compute_IoU(xval, yval, model, th=ct.DEF_PREDICTION_TH)
                 self.save_random_prediction(xval, yval, model, staining)
             else:
                 # Load pre-trained weights
                 model.load_weights(weights_fname)
 
-            # 4. Test stage
+            # 4. Test stage  !! NOT WORKING
             ptest = self._prepare_test(xtest, model)  # Test predictions
             test_list = dataset.get_data_list(set="test")
-            acc_proportion = self.count_segmented_glomeruli(ptest, test_list)
-            print_info("Segmented / Total = {}".format(acc_proportion))
+            iou_score = self.count_segmented_glomeruli(ptest, test_list)
+            self.save_train_log(history, iou_score)
             # When a test ends, clear the model to avoid influence in next ones.
             del model
 
@@ -173,7 +184,7 @@ class TestBench:
         plt.savefig(os.path.join(ct.OUTPUT_BASENAME, 'acc_' + bname + ".png"))
         # plt.show()
 
-    def compute_IoU(self, xtest, ytest, model, th: float = ct._DEF_PREDICTION_TH):
+    def compute_IoU(self, xtest, ytest, model, th: float = ct.DEF_PREDICTION_TH):
         ypred = model.predict(xtest)
         ypred_th = ypred > th
         intersection = np.logical_and(ytest, ypred_th)
@@ -187,7 +198,7 @@ class TestBench:
         ground_truth = ytest[test_img_number]
         test_img_norm = test_img[:, :, 0][:, :, None]
         test_img_input = np.expand_dims(test_img_norm, 0)
-        prediction = (model.predict(test_img_input)[0, :, :, 0] > ct._DEF_PREDICTION_TH).astype(np.uint8)
+        prediction = (model.predict(test_img_input)[0, :, :, 0] > ct.DEF_PREDICTION_TH).astype(np.uint8)
 
         plt.figure()
         plt.subplot(131)
@@ -201,10 +212,40 @@ class TestBench:
         plt.imshow(prediction, cmap="gray")
         plt.savefig(os.path.join(ct.OUTPUT_BASENAME, 'pred_' + bname + ".png"))
 
+    def save_train_log(self, history, iou_score):
+        log_fname = os.path.join(ct.OUTPUT_BASENAME, time.strftime("%Y%m%d-%H%M%S") + '.txt')
+        with open(log_fname, 'w') as f:
+            # Write parameters used
+            f.write("TRAINING PARAMETERS\n")
+            f.write('DEF_TRAIN_SIZE={}\n'.format(ct.DEF_TRAIN_SIZE))
+            f.write('DEF_STAINING={}\n'.format(ct.DEF_STAINING))
+            f.write('DEF_RZ_RATIO={}\n'.format(ct.DEF_TRAIN_SIZE))
+            f.write('DEF_PREDICTION_TH={}\n'.format(ct.DEF_RZ_RATIO))
+            f.write('DEF_TRAIN_SIZE={}\n'.format(ct.DEF_TRAIN_SIZE))
+            f.write('BATCH_SIZE={}\n'.format(ct.BATCH_SIZE))
+            f.write('EPOCHS={}\n'.format(ct.EPOCHS))
+            f.write('ES_PATIENCE={}\n'.format(ct.ES_PATIENCE))
+            f.write("--------------------------------------\n")
+            # Write training results if existing
+            if history:
+                f.write('TRAINING RESULTS\n')
+                loss = history.history['loss']
+                val_loss = history.history['val_loss']
+                acc = history.history['accuracy']
+                val_acc = history.history['val_accuracy']
+                f.write('TRAINING_LOSS={}\n'.format(str(loss)))
+                f.write('VALIDATION_LOSS={}\n'.format(str(val_loss)))
+                f.write('TRAINING_ACC={}\n'.format(str(acc)))
+                f.write('VALIDATION_ACC={}\n'.format(str(val_acc)))
+                f.write("--------------------------------------\n")
+            # write testing results
+            f.write('TESTING RESULTS\n')
+            f.write('IoU_SCORE={}\n'.format(iou_score))
+
 
 def Train():
     stainings = ["HE", "PAS", "PM", "ALL"]
-    testbench = TestBench(stainings=stainings)
+    testbench = TestBench(stainings=stainings, limit_samples=ct.DEBUG_LIMIT)
     testbench.run(train=True, wfile=None)
 
 

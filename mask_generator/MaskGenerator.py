@@ -48,7 +48,7 @@ class MaskGenerator:
         Create a binary mask where circles (255) mark the position of glomeruli in image.
         Source:  https://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array/8650741
         """
-        h, w = ct._PATCH_SIZE[1], ct._PATCH_SIZE[0]
+        h, w = ct.PATCH_SIZE[1], ct.PATCH_SIZE[0]
         im_mask = np.zeros((h, w), dtype=np.uint8)
         if self._mask_type == MaskType.CIRCULAR:
             for r in data.keys():

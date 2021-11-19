@@ -8,12 +8,13 @@ import random
 from utils import computeRowsCols
 import matplotlib.pyplot as plt
 from typing import List, Optional
+import constants as ct
 
 PATCH_SIZE = 256
 # IMGS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_ims"
 # MASKS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_masks"
-IMGS_PATH = "D:/DataGlomeruli/patches_ims"
-MASKS_PATH = "D:/DataGlomeruli/patches_masks"
+# IMGS_PATH = "D:/DataGlomeruli/patches_ims"
+# MASKS_PATH = "D:/DataGlomeruli/patches_masks"
 
 
 def show_ims(imgs: List[np.ndarray],
@@ -46,7 +47,9 @@ def show_ims(imgs: List[np.ndarray],
 
 
 def load_data(fpath: str):
-    return [cv2.imread(im, cv2.IMREAD_GRAYSCALE) for im in sorted(glob.glob(fpath + "/*"))]
+    files = glob.glob(fpath + "/*")
+    files.sort()
+    return [cv2.imread(im, cv2.IMREAD_GRAYSCALE) for im in files]
 
 
 def get_model():
@@ -55,11 +58,11 @@ def get_model():
 
 if __name__ == '__main__':
     model = get_model()
-    weights_file = "last_37.hdf5"
+    weights_file = "weights/weights_HE.hdf5"
     model.load_weights(weights_file)
 
-    ims = load_data(IMGS_PATH)
-    masks = load_data(MASKS_PATH)
+    ims = load_data(ct.TEST_IMS_PATH)
+    masks = load_data(ct.TEST_MASKS_PATH)
 
     ims = np.expand_dims(normalize(np.array(ims), axis=1), 3)
     masks = np.expand_dims(normalize(np.array(masks), axis=1), 3)
@@ -67,16 +70,14 @@ if __name__ == '__main__':
     ypred = model.predict(ims)
     ypred_th = ypred > 0.5
 
-    while True:
-        indexes = random.sample(range(len(ypred)), 4)
-        ims_sample = [ims[index] for index in indexes]
-        masks_sample = [masks[index] for index in indexes]
-        pred_sample = [ypred[index] for index in indexes]
-        predth_sample = [ypred_th[index] for index in indexes]
-        show_ims(ims_sample+masks_sample+pred_sample+predth_sample, 4, 4)
-        plt.close()
-
-
+    # while True:
+    #     indexes = random.sample(range(len(ypred)), 4)
+    #     ims_sample = [ims[index] for index in indexes]
+    #     masks_sample = [masks[index] for index in indexes]
+    #     pred_sample = [ypred[index] for index in indexes]
+    #     predth_sample = [ypred_th[index] for index in indexes]
+    #     show_ims(ims_sample+masks_sample+pred_sample+predth_sample, 4, 4)
+    #     plt.close()
 
     intersection = np.logical_and(masks, ypred_th)
     union = np.logical_or(masks, ypred_th)
