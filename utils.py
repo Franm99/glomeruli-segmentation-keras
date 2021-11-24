@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup
 from enum import Enum, auto
 from scipy.spatial import distance
 from scipy.optimize import linprog
+from collections import OrderedDict
+from itertools import combinations
 
 
 # ---- CLASSES ----
@@ -44,7 +46,6 @@ GlomeruliClass = {
 
 
 # ---- FUNCTIONS ----
-
 def get_data_from_xml(xml_file: str, apply_simplex: bool) -> Dict[int, List[Tuple[int, int]]]:
     """ Read data from glomeruli xml file.
     Data to extract: Glomeruli class and coordinates of each occurrence.
@@ -62,6 +63,7 @@ def get_data_from_xml(xml_file: str, apply_simplex: bool) -> Dict[int, List[Tupl
         for point in points:
             p.append((int(point.get('X')), int(point.get('Y'))))
         glomeruli[GlomeruliClass[name]].extend(p)
+    # delete_doubles(glomeruli)
     if apply_simplex:
         glomeruli = simplex(glomeruli)
     return glomeruli
@@ -70,12 +72,32 @@ def get_data_from_xml(xml_file: str, apply_simplex: bool) -> Dict[int, List[Tupl
 def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int, int]]]:
     """ Apply simplex algorithm to avoid masks overlap.
      Simplex algorithm: https://docs.scipy.org/doc/scipy/reference/optimize.linprog-simplex.html"""
+
     # Compute D2: size limits for each point (i.e., data key)
     D2 = np.asarray([size for size in data.keys() for _ in range(len(data[size]))])
     # Compute X: Set of points. Format: [xc', yc']
-    X = np.asarray([i for size in data.keys() for i in data[size]]) # Set of points
-    N = len(X)
+    X = np.asarray([i for size in data.keys() for i in data[size]])  # Set of points
+    # data_ = [[sz, p] for sz in data.keys() for p in data[sz]]
     # Compute D1: Distance between each points pair
+    D1 = distance.pdist(X, metric='euclidean')
+    N = len(X)
+
+    # Search for duplicate labels (very near coordinates)
+    c = np.asarray(list(combinations(np.arange(N), 2)))
+    targets = c[D1 < 100]  # Threshold set to the minimum radius size allowed
+    to_delete = [tg[0] if D2[tg[0]] < D2[tg[1]] else tg[1] for tg in targets]
+
+    # Re-Compute D2,X and N solving duplicates
+    D2 = np.delete(D2, to_delete)
+    X = np.delete(X, to_delete, axis=0)
+
+    #Re-construct data dict
+    data = {i: [] for i in set(D2)}
+    for idx, p in enumerate(X):
+        data[D2[idx]].append(tuple(p))
+
+    N = len(X)
+    # Re-Compute D1
     D1 = distance.pdist(X, metric='euclidean')
 
     # Lower triangle
@@ -249,13 +271,37 @@ def print_error(msg):
 #     t.testf(2)
 
 # Testing xml extractor
-# if __name__ == '__main__':
-#     dpath = "D:\\DataGlomeruli\\xml"
-#     import os, glob, random
-#
-#     # i = random.randint(0, len(os.listdir(dpath)) - 1)
-#     i = 495
-#     print("------", i)
-#     f = glob.glob(dpath + '/*')[i]
-#     data = get_data_from_xml(f)
-#     simplex(data)
+if __name__ == '__main__':
+    xml_path = "D:\\DataGlomeruli\\xml"
+    mask_path = "D:\\DataGlomeruli\\gt\\circles"
+    im_path = "D:\\DataGlomeruli\\ims"
+    import os, glob, random
+    import matplotlib.pyplot as plt
+    import cv2.cv2 as cv2
+
+    i = random.randint(0, len(os.listdir(xml_path)) - 1)
+    # i = 522
+    # i = 10
+    print("------", i)
+    # xml_f = glob.glob(xml_path + '/*')[i]
+    xml_f = xml_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.xml"
+    # mask_f = glob.glob(mask_path + '/*')[i]
+    mask_f = mask_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.png"
+    # im_f = glob.glob(im_path + '/*')[i]
+    im_f = im_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.png"
+
+    print(xml_f)
+    mask = cv2.cvtColor(cv2.imread(mask_f, cv2.IMREAD_GRAYSCALE), cv2.COLOR_BGR2RGB)
+    im = cv2.cvtColor(cv2.imread(im_f, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
+
+    plt.figure()
+    plt.subplot(121)
+    plt.imshow(im)
+    plt.subplot(122)
+    plt.imshow(mask, cmap="gray")
+
+    data = get_data_from_xml(xml_f, apply_simplex=True)
+    print(data)
+    plt.show()
+
+
