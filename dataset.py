@@ -10,21 +10,21 @@ import random
 import numpy as np
 from PIL import Image
 from tensorflow.keras.utils import normalize
-import constants as ct
+import parameters as params
 
 
 class Dataset():
-    def __init__(self, staining: str = ct.DEF_STAINING):
+    def __init__(self, staining: str = params.DEF_STAINING):
         """ Initialize Dataset.
         Paths initialization to find data in disk. Images and ground-truth masks full-paths are loaded."""
         # Paths
-        self._ims_path = ct.DATASET_PATH + '/ims'
-        self._xmls_path = ct.DATASET_PATH + '/xml'
-        self._masks_path = ct.DATASET_PATH + '/gt' + '/circles'
-        self._train_val_file = ct.DATASET_PATH + '/train_val.txt'
-        self._test_file = ct.DATASET_PATH + '/test.txt'
-        self._train_val_ims_path = ct.DATASET_PATH + '/train_val/patches'
-        self._train_val_masks_path = ct.DATASET_PATH + '/train_val/patches_masks'
+        self._ims_path = params.DATASET_PATH + '/ims'
+        self._xmls_path = params.DATASET_PATH + '/xml'
+        self._masks_path = params.DATASET_PATH + '/gt' + '/circles'
+        self._train_val_file = params.DATASET_PATH + '/train_val.txt'
+        self._test_file = params.DATASET_PATH + '/test.txt'
+        self._train_val_ims_path = params.DATASET_PATH + '/train_val/patches'
+        self._train_val_masks_path = params.DATASET_PATH + '/train_val/patches_masks'
 
         self._staining = staining
         self.trainval_list = []
@@ -98,7 +98,7 @@ class Dataset():
         else:
             print_info("NO PATCHES HAVE BEEN FOUND IN DISK.")
             print_info("Generating sub-patches for training stage and saving to disk...")
-            patch_size_or = ct.UNET_INPUT_SIZE * rz_ratio
+            patch_size_or = params.UNET_INPUT_SIZE * rz_ratio
             for im, mask in tqdm(zip(data, data_masks), total=len(data), desc = "Generating subpatches"):
                 [h, w] = im.shape
                 for x in range(0, w, patch_size_or):
@@ -111,8 +111,8 @@ class Dataset():
                         mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
                         if self._filter(mask_arr):
                             # Convert to PIL for resizing and returning to numpy array format.
-                            patch = np.asarray(Image.fromarray(patch_arr).resize((ct.UNET_INPUT_SIZE, ct.UNET_INPUT_SIZE)))
-                            patch_mask = np.asarray(Image.fromarray(mask_arr).resize((ct.UNET_INPUT_SIZE, ct.UNET_INPUT_SIZE)))
+                            patch = np.asarray(Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                            patch_mask = np.asarray(Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
                             patches.append(patch)
                             patches_masks.append(patch_mask)
             # Save train dataset to disk for later use

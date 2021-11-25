@@ -6,19 +6,19 @@ import os
 import glob
 from tqdm import tqdm
 from utils import get_data_from_xml, print_info, MaskType
-import constants as ct
+import parameters as params
 
 
 class MaskGenerator:
     def __init__(self, mask_type: MaskType = MaskType.CIRCULAR):
         self._mask_type = mask_type
-        self._ims = ct.DATASET_PATH + '/ims'
-        self._glomeruli_coords = ct.DATASET_PATH + '/xml'
+        self._ims = params.DATASET_PATH + '/ims'
+        self._glomeruli_coords = params.DATASET_PATH + '/xml'
 
         if mask_type == MaskType.CIRCULAR:
-            self._masks = ct.DATASET_PATH + '/gt/circles'
+            self._masks = params.DATASET_PATH + '/gt/circles'
         else:
-            self._masks = ct.DATASET_PATH + 'gt/bboxes'
+            self._masks = params.DATASET_PATH + 'gt/bboxes'
 
         self._xml_file_list = glob.glob(self._glomeruli_coords + '/*')
         self._xml_file_list.sort()
@@ -48,7 +48,7 @@ class MaskGenerator:
         Create a binary mask where circles (255) mark the position of glomeruli in image.
         Source:  https://stackoverflow.com/questions/8647024/how-to-apply-a-disc-shaped-mask-to-a-numpy-array/8650741
         """
-        h, w = ct.PATCH_SIZE[1], ct.PATCH_SIZE[0]
+        h, w = params.PATCH_SIZE[1], params.PATCH_SIZE[0]
         im_mask = np.zeros((h, w), dtype=np.uint8)
         if self._mask_type == MaskType.CIRCULAR:
             for r in data.keys():

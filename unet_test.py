@@ -8,7 +8,7 @@ import random
 from utils import computeRowsCols
 import matplotlib.pyplot as plt
 from typing import List, Optional
-import constants as ct
+import parameters as params
 
 PATCH_SIZE = 256
 # IMGS_PATH = "/home/francisco/Escritorio/DataGlomeruli/patches_ims"
@@ -61,8 +61,8 @@ if __name__ == '__main__':
     weights_file = "weights/weights_HE.hdf5"
     model.load_weights(weights_file)
 
-    ims = load_data(ct.TEST_IMS_PATH)
-    masks = load_data(ct.TEST_MASKS_PATH)
+    ims = load_data(params.TEST_IMS_PATH)
+    masks = load_data(params.TEST_MASKS_PATH)
 
     ims = np.expand_dims(normalize(np.array(ims), axis=1), 3)
     masks = np.expand_dims(normalize(np.array(masks), axis=1), 3)

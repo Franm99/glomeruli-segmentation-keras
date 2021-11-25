@@ -15,13 +15,13 @@ from dataset import Dataset
 from utils import get_data_from_xml, print_info
 import cv2.cv2 as cv2
 from tqdm import tqdm
-import constants as ct
+import parameters as params
 import time
 
 
 def get_model():
     """ return: U-Net model (TF2 version)"""
-    return unet_model(ct.UNET_INPUT_SIZE, ct.UNET_INPUT_SIZE, 1)
+    return unet_model(params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE, 1)
 
 
 class TestBench:
@@ -29,9 +29,9 @@ class TestBench:
         """ Initialize class variables and main paths. """
         self._stainings = stainings
         self._limit_samples = limit_samples
-        self._xml_path = ct.DATASET_PATH + '/xml'
-        self._ims_path = ct.DATASET_PATH + '/ims'
-        self._masks_path = ct.DATASET_PATH + '/gt'
+        self._xml_path = params.DATASET_PATH + '/xml'
+        self._ims_path = params.DATASET_PATH + '/ims'
+        self._masks_path = params.DATASET_PATH + '/gt'
 
     def run(self):
         for staining in self._stainings:
@@ -49,11 +49,11 @@ class TestBench:
 
             # 3. TRAINING AND VALIDATION STAGE
             print_info("########## TRAINING AND VALIDATION STAGE ##########")
-            print_info("Num epochs: {}".format(ct.EPOCHS))
-            print_info("Batch size: {}".format(ct.BATCH_SIZE))
-            print_info("Patience for Early Stopping: {}".format(ct.ES_PATIENCE))
+            print_info("Num epochs: {}".format(params.EPOCHS))
+            print_info("Batch size: {}".format(params.BATCH_SIZE))
+            print_info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
             print_info("STARTING TRAINING PROCESS:")
-            history = model.fit(xtrain, ytrain, batch_size=ct.BATCH_SIZE, verbose=1, epochs=ct.EPOCHS,
+            history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
                                 validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
             print_info("TRAINING PROCESS FINISHED.")
             wfile = self.weights_path + '/model.hdf5'
@@ -61,8 +61,8 @@ class TestBench:
             model.save(wfile)
             print_info("Saving loss and accuracy results collected over epochs.")
             self._save_results(history)
-            iou_score = self.compute_IoU(xval, yval, model, th=ct.DEF_PREDICTION_TH)
-            print_info("IoU from validation (threshold={}): {}".format(ct.DEF_PREDICTION_TH, iou_score))
+            iou_score = self.compute_IoU(xval, yval, model, th=params.DEF_PREDICTION_TH)
+            print_info("IoU from validation (threshold={}): {}".format(params.DEF_PREDICTION_TH, iou_score))
             print_info("Saving validation predictions (patches) to disk.")
             # self._save_val_predictions(xval, model, dataset)  # TODO: Fix
 
@@ -79,7 +79,7 @@ class TestBench:
 
     def _prepare_output(self):
         self.log_name = time.strftime("%Y%m%d-%H%M%S")
-        self.output_folder_path = os.path.join(ct.OUTPUT_BASENAME, self.log_name)
+        self.output_folder_path = os.path.join(params.OUTPUT_BASENAME, self.log_name)
         os.mkdir(self.output_folder_path)
         self.weights_path = os.path.join(self.output_folder_path, 'model')
         os.mkdir(self.weights_path)
@@ -102,14 +102,14 @@ class TestBench:
         xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
 
         print_info("DATA PREPROCESSING FOR TRAINING.")
-        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=ct.DEF_RZ_RATIO, from_disk=False)
+        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=params.DEF_RZ_RATIO, from_disk=False)
         print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
 
         print_info("Second split: Training & Validation split:")
         xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
         return xtrain, xval, xtest, ytrain, yval, ytest
 
-    def _prepare_model(self, save_logs: bool = ct.SAVE_TRAIN_LOGS, es_patience: int = ct.ES_PATIENCE):
+    def _prepare_model(self, save_logs: bool = params.SAVE_TRAIN_LOGS, es_patience: int = params.ES_PATIENCE):
         model = get_model()
         weights_backup = self.weights_path + '/backup.hdf5'
         checkpoint_cb = cb.ModelCheckpoint(weights_backup, verbose=1, save_best_only=True)
@@ -129,9 +129,9 @@ class TestBench:
 
     def _prepare_test(self, ims, ims_names, model):
         predictions = []
-        org_size = int(ct.UNET_INPUT_SIZE * ct.DEF_RZ_RATIO)
+        org_size = int(params.UNET_INPUT_SIZE * params.DEF_RZ_RATIO)
         for im, im_name in tqdm(zip(ims, ims_names), total=len(ims), desc="Test predictions"):
-            pred = self._get_mask(im, org_size, model, th = ct.DEF_PREDICTION_TH)
+            pred = self._get_mask(im, org_size, model, th = params.DEF_PREDICTION_TH)
             predictions.append(pred)
             im_path = os.path.join(self.pred_path, im_name)
             cv2.imwrite(im_path, pred)
@@ -163,7 +163,7 @@ class TestBench:
                     prediction_rs = np.zeros((dim, dim), dtype=np.uint8)
                 else:
                     # Tissue sub-patches are fed to the U-net model for mask prediction
-                    patch = cv2.resize(patch, (ct.UNET_INPUT_SIZE, ct.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
+                    patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
                     patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                     prediction = (model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)
                     prediction_rs = cv2.resize(prediction[0], (dim, dim), interpolation=cv2.INTER_AREA)
@@ -213,7 +213,7 @@ class TestBench:
         plt.legend()
         plt.savefig(os.path.join(self.output_folder_path, "acc.png"))
 
-    def compute_IoU(self, xtest, ytest, model, th: float = ct.DEF_PREDICTION_TH):
+    def compute_IoU(self, xtest, ytest, model, th: float = params.DEF_PREDICTION_TH):
         ypred = model.predict(xtest)
         ypred_th = ypred > th
         intersection = np.logical_and(ytest, ypred_th)
@@ -225,7 +225,7 @@ class TestBench:
     #     for val_im, val_name in tqdm(xval, dataset.test_list), total=len(xtest), desc="Validation predictions"):
     #         test_img_norm = test_img[:, :, 0][:, :, None]
     #         test_img_input = np.expand_dims(test_img_norm, 0)
-    #         prediction = (model.predict(test_img_input)[0, :, :, 0] > ct.DEF_PREDICTION_TH).astype(np.uint8)
+    #         prediction = (model.predict(test_img_input)[0, :, :, 0] > params.DEF_PREDICTION_TH).astype(np.uint8)
     #         test_path = os.path.join(self.pred_path, test_name)
     #         cv2.imwrite(test_path, prediction)
 
@@ -234,14 +234,14 @@ class TestBench:
         with open(log_fname, 'w') as f:
             # Write parameters used
             f.write("TRAINING PARAMETERS\n")
-            f.write('DEF_TRAIN_SIZE={}\n'.format(ct.DEF_TRAIN_SIZE))
-            f.write('DEF_STAINING={}\n'.format(ct.DEF_STAINING))
-            f.write('DEF_RZ_RATIO={}\n'.format(ct.DEF_TRAIN_SIZE))
-            f.write('DEF_PREDICTION_TH={}\n'.format(ct.DEF_RZ_RATIO))
-            f.write('DEF_TRAIN_SIZE={}\n'.format(ct.DEF_TRAIN_SIZE))
-            f.write('BATCH_SIZE={}\n'.format(ct.BATCH_SIZE))
-            f.write('EPOCHS={}\n'.format(ct.EPOCHS))
-            f.write('ES_PATIENCE={}\n'.format(ct.ES_PATIENCE))
+            f.write('DEF_TRAIN_SIZE={}\n'.format(params.DEF_TRAIN_SIZE))
+            f.write('DEF_STAINING={}\n'.format(params.DEF_STAINING))
+            f.write('DEF_RZ_RATIO={}\n'.format(params.DEF_TRAIN_SIZE))
+            f.write('DEF_PREDICTION_TH={}\n'.format(params.DEF_RZ_RATIO))
+            f.write('DEF_TRAIN_SIZE={}\n'.format(params.DEF_TRAIN_SIZE))
+            f.write('BATCH_SIZE={}\n'.format(params.BATCH_SIZE))
+            f.write('EPOCHS={}\n'.format(params.EPOCHS))
+            f.write('ES_PATIENCE={}\n'.format(params.ES_PATIENCE))
             f.write("--------------------------------------\n")
             # Write training results
             f.write('TRAINING RESULTS\n')
@@ -262,7 +262,7 @@ class TestBench:
 
 def Train():
     stainings = ["HE", "PAS", "PM", "ALL"]
-    testbench = TestBench(stainings=stainings, limit_samples=ct.DEBUG_LIMIT)
+    testbench = TestBench(stainings=stainings, limit_samples=params.DEBUG_LIMIT)
     testbench.run()
 
 

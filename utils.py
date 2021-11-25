@@ -111,13 +111,13 @@ def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int,
     # Prepare V
     fil = len(D1)
     V = np.zeros((fil, N))
-    ct = 0
+    params = 0
     for j in range(N):
         for i in range(N):
             if M[i, j] != 0:
-                V[ct, i] = 1
-                V[ct, j] = 1
-                ct += 1
+                V[params, i] = 1
+                V[params, j] = 1
+                params += 1
 
     # f: function to minimize
     f = np.ones((N, 1)) * 2 * np.pi
