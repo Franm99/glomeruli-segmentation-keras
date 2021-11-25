@@ -11,35 +11,43 @@ import numpy as np
 from PIL import Image
 from tensorflow.keras.utils import normalize
 import parameters as params
+from typing import Optional
 
 
 class Dataset():
-    def __init__(self, staining: str = params.DEF_STAINING):
+    def __init__(self, staining: str, mask_size: Optional[int], mask_simplex: bool):
         """ Initialize Dataset.
-        Paths initialization to find data in disk. Images and ground-truth masks full-paths are loaded."""
+        Paths initialization to find data in disk. Images and ground-truth masks full-paths are loaded.
+        """
         # Paths
         self._ims_path = params.DATASET_PATH + '/ims'
         self._xmls_path = params.DATASET_PATH + '/xml'
-        self._masks_path = params.DATASET_PATH + '/gt' + '/circles'
+        self._masks_path = params.DATASET_PATH + '/gt/circles'
         self._train_val_file = params.DATASET_PATH + '/train_val.txt'
         self._test_file = params.DATASET_PATH + '/test.txt'
         self._train_val_ims_path = params.DATASET_PATH + '/train_val/patches'
         self._train_val_masks_path = params.DATASET_PATH + '/train_val/patches_masks'
 
         self._staining = staining
+        self._mask_size = mask_size
+        self._mask_simplex = mask_simplex
         self.trainval_list = []
         self.test_list = []
 
+        if self._mask_size:
+            self._masks_path = self._masks_path + str(self._mask_size)
+
+        if self._mask_simplex:
+            self._masks_path = self._masks_path + "_simplex"
+
         # List of data paths (instead of numpy arrays)
-        if self._staining == "ALL":
-            self.ims_list = glob.glob(self._ims_path + '/*')
-            self.ims_list.sort()
-            self.masks_list = self._load_masks()
-        else:
-            tmp = glob.glob(self._ims_path + '/*')
-            tmp.sort()
-            self.ims_list = [i for i in tmp if self._staining in i]
-            self.masks_list = [i for i in self._load_masks() if self._staining in i]
+        self.ims_list = glob.glob(self._ims_path + '/*')
+        self.ims_list.sort()
+        self.masks_list = self._load_masks(self._mask_size, self._mask_simplex)
+        self.masks_list.sort()
+        if self._staining != "ALL":  # Load just the samples for the selected staining
+            self.ims_list = [i for i in self.ims_list if self._staining in i]
+            self.masks_list = [i for i in self.masks_list if self._staining in i]
 
     def split_trainval_test(self, train_size: float, overwrite: bool = True):
         if not overwrite:
@@ -126,12 +134,12 @@ class Dataset():
 
     # PRIVATE
     @timer
-    def _load_masks(self):
+    def _load_masks(self, mask_size: Optional[int], mask_simplex: bool):
         # Check for existing masks folder for desired size
         print_info("Checking if ground-truth masks exists or either they need to be generated.")
         if not os.path.isdir(self._masks_path):
             print_warn("MASKS DO NOT EXIST YET. GENERATING GROUND-TRUTH.")
-            maskGenerator = MaskGenerator()
+            maskGenerator = MaskGenerator(mask_size=mask_size, apply_simplex=mask_simplex)
             return maskGenerator.get_masks_files()
         res = glob.glob(self._masks_path + '/*.png')
         res.sort()

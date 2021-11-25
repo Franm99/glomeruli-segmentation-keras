@@ -46,7 +46,8 @@ GlomeruliClass = {
 
 
 # ---- FUNCTIONS ----
-def get_data_from_xml(xml_file: str, apply_simplex: bool) -> Dict[int, List[Tuple[int, int]]]:
+def get_data_from_xml(xml_file: str, mask_size: Optional[int],
+                      apply_simplex: bool) -> Dict[int, List[Tuple[int, int]]]:
     """ Read data from glomeruli xml file.
     Data to extract: Glomeruli class and coordinates of each occurrence.
     """
@@ -54,16 +55,21 @@ def get_data_from_xml(xml_file: str, apply_simplex: bool) -> Dict[int, List[Tupl
         data = f.read()
     bs_data = BeautifulSoup(data, "xml")
     counts = bs_data.find("Counts").find_all("Count")
-    glomeruli = {x.value: [] for x in Size}
-    # print(counts)  # DEBUG
-    for count in counts:
-        name = count.get('name')
-        points = count.find_all('point')
-        p = []
-        for point in points:
-            p.append((int(point.get('X')), int(point.get('Y'))))
-        glomeruli[GlomeruliClass[name]].extend(p)
-    # delete_doubles(glomeruli)
+
+    if mask_size:  # Using fixed mask size
+        glomeruli = {mask_size: []}
+        for count in counts:
+            points = count.find_all('point')
+            glomeruli[mask_size].extend([(int(point.get('X')), int(point.get('Y'))) for point in points])
+    else:  # Using variable mask size based on glmoeruli class
+        glomeruli = {x.value: [] for x in Size}
+        for count in counts:
+            name = count.get('name')
+            points = count.find_all('point')
+            p = []
+            for point in points:
+                p.append((int(point.get('X')), int(point.get('Y'))))
+            glomeruli[GlomeruliClass[name]].extend(p)
     if apply_simplex:
         glomeruli = simplex(glomeruli)
     return glomeruli

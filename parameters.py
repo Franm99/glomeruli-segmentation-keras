@@ -13,10 +13,12 @@ BATCH_SIZE = 16
 EPOCHS = 50
 ES_PATIENCE = 2
 SAVE_TRAIN_LOGS = True
+MASK_SIZE = 150
+APPLY_SIMPLEX = True
 
 OUTPUT_BASENAME = 'output'
-DATASET_PATH = 'D:/DataGlomeruli'  # Windows
-# DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
+# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 TEST_IMS_PATH = DATASET_PATH + '/train_val/patches'
 TEST_MASKS_PATH = DATASET_PATH + '/train_val/patches_masks'
 

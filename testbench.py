@@ -25,13 +25,21 @@ def get_model():
 
 
 class TestBench:
-    def __init__(self, stainings: List[str], limit_samples: Optional[float] = None):
+    def __init__(self, stainings: List[str], limit_samples: Optional[float],
+                 mask_size: Optional[int], mask_simplex: bool):
         """ Initialize class variables and main paths. """
         self._stainings = stainings
         self._limit_samples = limit_samples
+        self._mask_size = mask_size
+        self._mask_simplex = mask_simplex
         self._xml_path = params.DATASET_PATH + '/xml'
         self._ims_path = params.DATASET_PATH + '/ims'
-        self._masks_path = params.DATASET_PATH + '/gt'
+        self._masks_path = params.DATASET_PATH + '/gt/circles'
+
+        if self._mask_size:
+            self._masks_path = self._masks_path + str(self._mask_size)
+        if self._mask_simplex:
+            self._masks_path = self._masks_path + "_simplex"
 
     def run(self):
         for staining in self._stainings:
@@ -40,7 +48,7 @@ class TestBench:
 
             # 1. Prepare Dataset
             print_info("########## PREPARE DATASET ##########")
-            dataset = Dataset(staining=staining)
+            dataset = Dataset(staining=staining, mask_size=self._mask_size, mask_simplex=self._mask_simplex)
             xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
 
             # 2. Prepare model
@@ -78,10 +86,10 @@ class TestBench:
             del model
 
     def _prepare_output(self):
-        self.log_name = time.strftime("%Y%m%d-%H%M%S")
+        self.log_name = time.strftime("%Y-%m-%d_%H-%M-%S")
         self.output_folder_path = os.path.join(params.OUTPUT_BASENAME, self.log_name)
         os.mkdir(self.output_folder_path)
-        self.weights_path = os.path.join(self.output_folder_path, 'model')
+        self.weights_path = os.path.join(self.output_folder_path, 'weights')
         os.mkdir(self.weights_path)
         self.pred_path = os.path.join(self.output_folder_path, 'prediction')
         os.mkdir(self.pred_path)
@@ -177,7 +185,7 @@ class TestBench:
         counter_total = 0
         counter = 0
         for pred, xml in zip(preds, xml_list):
-            data = get_data_from_xml(xml, apply_simplex=True)
+            data = get_data_from_xml(xml, mask_size=self._mask_size, apply_simplex=self._mask_simplex)
             for r in data.keys():
                 points = data[r]
                 for (cx, cy) in points:
@@ -261,8 +269,11 @@ class TestBench:
 
 
 def Train():
-    stainings = ["HE", "PAS", "PM", "ALL"]
-    testbench = TestBench(stainings=stainings, limit_samples=params.DEBUG_LIMIT)
+    stainings = ["HE"]
+    testbench = TestBench(stainings=stainings,
+                          limit_samples=params.DEBUG_LIMIT,
+                          mask_size=params.MASK_SIZE,
+                          mask_simplex=params.APPLY_SIMPLEX)
     testbench.run()
 
 

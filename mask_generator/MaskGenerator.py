@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2.cv2 as cv2
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional
 import os
 import glob
 from tqdm import tqdm
@@ -10,13 +10,20 @@ import parameters as params
 
 
 class MaskGenerator:
-    def __init__(self, mask_type: MaskType = MaskType.CIRCULAR):
+    def __init__(self, mask_type: MaskType = MaskType.CIRCULAR, mask_size: Optional[int] = params.MASK_SIZE,
+                 apply_simplex: bool = params.APPLY_SIMPLEX):
         self._mask_type = mask_type
+        self._mask_size = mask_size
+        self._apply_simplex = apply_simplex
         self._ims = params.DATASET_PATH + '/ims'
         self._glomeruli_coords = params.DATASET_PATH + '/xml'
 
         if mask_type == MaskType.CIRCULAR:
             self._masks = params.DATASET_PATH + '/gt/circles'
+            if self._mask_size:
+                self._masks = self._masks + str(self._mask_size)
+            if self._apply_simplex:
+                self._masks = self._masks + "_simplex"
         else:
             self._masks = params.DATASET_PATH + 'gt/bboxes'
 
@@ -35,7 +42,7 @@ class MaskGenerator:
         print_info("Generating masks for groundtruth...")
         for xml_file, im_file in tqdm(zip(self._xml_file_list, self._ims_file_list),
                                       total=len(self._ims_file_list), desc="Generating masks"):
-            points = get_data_from_xml(xml_file, apply_simplex=True)
+            points = get_data_from_xml(xml_file, mask_size=self._mask_size, apply_simplex=self._apply_simplex)
             mask = self._get_mask(points)
             # self._plot_sample(im_file, mask)  # DEBUG
             self._save_im(mask, im_file)
@@ -82,7 +89,7 @@ class MaskGenerator:
 
 
 if __name__ == '__main__':
-    maskGenerator = MaskGenerator(mask_type=MaskType.CIRCULAR)
+    maskGenerator = MaskGenerator(mask_type=MaskType.CIRCULAR, mask_size=params.MASK_SIZE, apply_simplex=False)
     maskGenerator.get_masks_files()
     # test()
 
