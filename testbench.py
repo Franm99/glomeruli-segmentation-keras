@@ -60,7 +60,7 @@ class TestBench:
             print_info("Num epochs: {}".format(params.EPOCHS))
             print_info("Batch size: {}".format(params.BATCH_SIZE))
             print_info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
-            print_info("STARTING TRAINING PROCESS:")
+            print_info("LAUNCHING TRAINING PROCESS:")
             history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
                                 validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
             print_info("TRAINING PROCESS FINISHED.")
@@ -227,7 +227,8 @@ class TestBench:
         intersection = np.logical_and(ytest, ypred_th)
         union = np.logical_or(ytest, ypred_th)
         iou_score = np.sum(intersection) / np.sum(union)
-        print("IoU score is ", iou_score)
+        print_info("IoU score is {}".format(iou_score))
+        return iou_score
 
     # def _save_val_predictions(self, xval, model), dataset:
     #     for val_im, val_name in tqdm(xval, dataset.test_list), total=len(xtest), desc="Validation predictions"):

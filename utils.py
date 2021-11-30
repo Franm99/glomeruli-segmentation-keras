@@ -152,7 +152,7 @@ def timer(f):
         result = f(*args, **kw)
         te = time.time()
 
-        print("I: {} - {:2.4f} sec".format(f.__name__, te - ts))
+        print_info("{} - {:2.4f} sec".format(f.__name__, te - ts))
         return result
 
     return time_dec

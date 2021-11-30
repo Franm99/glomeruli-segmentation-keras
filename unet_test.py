@@ -58,7 +58,7 @@ def get_model():
 
 if __name__ == '__main__':
     model = get_model()
-    weights_file = "weights/weights_HE.hdf5"
+    weights_file = "best_outputs/2021-11-30_09-09-23/weights/model.hdf5"
     model.load_weights(weights_file)
 
     ims = load_data(params.TEST_IMS_PATH)
