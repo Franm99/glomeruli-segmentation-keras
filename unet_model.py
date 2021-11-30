@@ -1,6 +1,7 @@
 from keras.models import Model
 from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate, Conv2DTranspose, BatchNormalization, Dropout, Lambda
-
+from tensorflow.keras.optimizers import Adam
+import parameters as params
 
 def unet_model(im_h, im_w, im_ch):
     inputs = Input((im_h, im_w, im_ch))
@@ -60,7 +61,10 @@ def unet_model(im_h, im_w, im_ch):
     outputs = Conv2D(1, (1, 1), activation='sigmoid')(c9)
 
     model = Model(inputs=[inputs], outputs=[outputs])
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    # model.summary()
+    model.compile(optimizer=Adam(params.LEARNING_RATE),
+                  loss='binary_crossentropy',
+                  metrics=params.MODEL_METRICS)
+    # model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    model.summary()
 
     return model
