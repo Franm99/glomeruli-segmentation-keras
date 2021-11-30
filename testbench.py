@@ -53,7 +53,7 @@ class TestBench:
 
             # 2. Prepare model
             print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
-            model, callbacks = self._prepare_model(save_logs=False)
+            model, callbacks = self._prepare_model()
 
             # 3. TRAINING AND VALIDATION STAGE
             print_info("########## TRAINING AND VALIDATION STAGE ##########")
@@ -69,8 +69,8 @@ class TestBench:
             model.save(wfile)
             print_info("Saving loss and accuracy results collected over epochs.")
             self._save_results(history)
-            iou_score = self.compute_IoU(xval, yval, model, th=params.DEF_PREDICTION_TH)
-            print_info("IoU from validation (threshold={}): {}".format(params.DEF_PREDICTION_TH, iou_score))
+            iou_score = self.compute_IoU(xval, yval, model, th=params.PREDICTION_THRESHOLD)
+            print_info("IoU from validation (threshold={}): {}".format(params.PREDICTION_THRESHOLD, iou_score))
             print_info("Saving validation predictions (patches) to disk.")
             # self._save_val_predictions(xval, model, dataset)  # TODO: Fix
 
@@ -110,36 +110,42 @@ class TestBench:
         xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
 
         print_info("DATA PREPROCESSING FOR TRAINING.")
-        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=params.DEF_RZ_RATIO, from_disk=False)
+        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=params.RESIZE_RATIO, from_disk=False)
         print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
 
         print_info("Second split: Training & Validation split:")
         xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
         return xtrain, xval, xtest, ytrain, yval, ytest
 
-    def _prepare_model(self, save_logs: bool = params.SAVE_TRAIN_LOGS, es_patience: int = params.ES_PATIENCE):
+    def _prepare_model(self):
         model = get_model()
         weights_backup = self.weights_path + '/backup.hdf5'
         checkpoint_cb = cb.ModelCheckpoint(weights_backup, verbose=1, save_best_only=True)
-        earlystopping_cb = cb.EarlyStopping(monitor='loss', patience=es_patience)
-        if save_logs:
+        earlystopping_cb = cb.EarlyStopping(monitor='val_loss', patience=params.ES_PATIENCE)
+        callbacks = [checkpoint_cb, earlystopping_cb]  # These callbacks are always used
+
+        if params.SAVE_TRAIN_LOGS:
             tensorboard_cb = cb.TensorBoard(log_dir=self.logs_path)
+            callbacks.append(tensorboard_cb)
             csvlogger_cb = cb.CSVLogger(self.logs_path + 'log.csv', separator=',', append=False)
-            callbacks = [checkpoint_cb, earlystopping_cb, tensorboard_cb, csvlogger_cb]
-        else:
-            callbacks = [checkpoint_cb, earlystopping_cb]
+            callbacks.append(csvlogger_cb)
+
+        if params.ACTIVATE_REDUCELR:
+            reducelr_cb = cb.ReduceLROnPlateau(monitor='val_loss', patience=params.REDUCELR_PATIENCE)
+            callbacks.append(reducelr_cb)
+
         print_info("Model callback functions for training:")
         print_info("Checkpointer:       {}".format("Y"))
         print_info("EarlyStopper:       {}".format("Y"))
-        print_info("TensorBoard logger: {}".format("Y" if save_logs else "N"))
-        print_info("CSV file logger:    {}".format("Y" if save_logs else "N"))
+        print_info("TensorBoard logger: {}".format("Y" if params.SAVE_TRAIN_LOGS else "N"))
+        print_info("CSV file logger:    {}".format("Y" if params.SAVE_TRAIN_LOGS else "N"))
         return model, callbacks
 
     def _prepare_test(self, ims, ims_names, model):
         predictions = []
-        org_size = int(params.UNET_INPUT_SIZE * params.DEF_RZ_RATIO)
+        org_size = int(params.UNET_INPUT_SIZE * params.RESIZE_RATIO)
         for im, im_name in tqdm(zip(ims, ims_names), total=len(ims), desc="Test predictions"):
-            pred = self._get_mask(im, org_size, model, th = params.DEF_PREDICTION_TH)
+            pred = self._get_mask(im, org_size, model, th = params.PREDICTION_THRESHOLD)
             predictions.append(pred)
             im_path = os.path.join(self.pred_path, im_name)
             cv2.imwrite(im_path, pred)
@@ -221,7 +227,7 @@ class TestBench:
         plt.legend()
         plt.savefig(os.path.join(self.output_folder_path, "acc.png"))
 
-    def compute_IoU(self, xtest, ytest, model, th: float = params.DEF_PREDICTION_TH):
+    def compute_IoU(self, xtest, ytest, model, th: float = params.PREDICTION_THRESHOLD):
         ypred = model.predict(xtest)
         ypred_th = ypred > th
         intersection = np.logical_and(ytest, ypred_th)
@@ -234,7 +240,7 @@ class TestBench:
     #     for val_im, val_name in tqdm(xval, dataset.test_list), total=len(xtest), desc="Validation predictions"):
     #         test_img_norm = test_img[:, :, 0][:, :, None]
     #         test_img_input = np.expand_dims(test_img_norm, 0)
-    #         prediction = (model.predict(test_img_input)[0, :, :, 0] > params.DEF_PREDICTION_TH).astype(np.uint8)
+    #         prediction = (model.predict(test_img_input)[0, :, :, 0] > params.PREDICTION_THRESHOLD).astype(np.uint8)
     #         test_path = os.path.join(self.pred_path, test_name)
     #         cv2.imwrite(test_path, prediction)
 
@@ -243,11 +249,11 @@ class TestBench:
         with open(log_fname, 'w') as f:
             # Write parameters used
             f.write("TRAINING PARAMETERS\n")
-            f.write('DEF_TRAIN_SIZE={}\n'.format(params.DEF_TRAIN_SIZE))
-            f.write('DEF_STAINING={}\n'.format(params.DEF_STAINING))
-            f.write('DEF_RZ_RATIO={}\n'.format(params.DEF_TRAIN_SIZE))
-            f.write('DEF_PREDICTION_TH={}\n'.format(params.DEF_RZ_RATIO))
-            f.write('DEF_TRAIN_SIZE={}\n'.format(params.DEF_TRAIN_SIZE))
+            f.write('TRAIN_SIZE={}\n'.format(params.TRAIN_SIZE))
+            f.write('STAINING={}\n'.format(params.STAINING))
+            f.write('RESIZE_RATIO={}\n'.format(params.TRAIN_SIZE))
+            f.write('PREDICTION_THRESHOLD={}\n'.format(params.RESIZE_RATIO))
+            f.write('TRAIN_SIZE={}\n'.format(params.TRAIN_SIZE))
             f.write('BATCH_SIZE={}\n'.format(params.BATCH_SIZE))
             f.write('EPOCHS={}\n'.format(params.EPOCHS))
             f.write('ES_PATIENCE={}\n'.format(params.ES_PATIENCE))
