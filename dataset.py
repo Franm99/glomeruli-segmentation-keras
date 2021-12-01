@@ -1,3 +1,11 @@
+"""
+TODO
+Write all image filenames to a txt, previous to the train+val - test split. This way, i ensure
+the same order when importing to a list. Then, the split is performed, and two new txt will be
+generated, containing the names for both the train+val and test sets. SAME PROCESS for sub-patches.
+
+TODO: Refactoring and documentation
+"""
 import os
 import glob
 from mask_generator.MaskGenerator import MaskGenerator
@@ -25,8 +33,10 @@ class Dataset():
         self._masks_path = params.DATASET_PATH + '/gt/circles'
         self._train_val_file = params.DATASET_PATH + '/train_val.txt'
         self._test_file = params.DATASET_PATH + '/test.txt'
-        self._train_val_ims_path = params.DATASET_PATH + '/train_val/patches'
-        self._train_val_masks_path = params.DATASET_PATH + '/train_val/patches_masks'
+        self._train_val_path = params.DATASET_PATH + '/train_val'
+        self._train_val_ims_path = self._train_val_path + '/patches'
+        self._train_val_masks_path = self._train_val_path + '/patches_masks'
+        self._subpatches_file = self._train_val_path + '/subpatches_list.txt'
 
         self._staining = staining
         self._mask_size = mask_size
@@ -92,16 +102,18 @@ class Dataset():
         return ims, masks
 
     @timer
-    def get_spatches(self, data, data_masks, rz_ratio: int, from_disk: bool = True):
+    def get_spatches(self, data, data_masks, rz_ratio: int, from_disk: bool):
         patches = []
         patches_masks = []
+        print_info("Load sub-patches from disk: \t{}".format("Y" if from_disk else "N"))
         if from_disk:
-            print_info("PATCHES ALREADY EXISTS IN DISK. ")
-            print_info("Loading sub-patches pairs for training stage from disk...")
-            patches_files = glob.glob(self._train_val_ims_path + '/*')
-            patches_files.sort()
-            patches_masks_files = glob.glob(self._train_val_masks_path + '/*')
-            patches_masks_files.sort()
+            # TODO: Better practice: load from file instead of using glob.glob(), as the loading order can vary from OS.
+            print_info("Sub-patches already located in memory. Reading from file")
+            print_info("Images at: {}".format(self._train_val_ims_path))
+            print_info("Masks at:  {}".format(self._train_val_masks_path))
+            patches_bnames = self.txt2list(self._subpatches_file)
+            patches_files = [os.path.join(self._train_val_ims_path, i) for i in patches_bnames]
+            patches_masks_files = [os.path.join(self._train_val_masks_path, i) for i in patches_bnames]
             patches, patches_masks = self.load_pairs(patches_files, patches_masks_files)
         else:
             print_info("NO PATCHES HAVE BEEN FOUND IN DISK.")
@@ -124,10 +136,11 @@ class Dataset():
                             patches.append(patch)
                             patches_masks.append(patch_mask)
             # Save train dataset to disk for later use
-            self._save_train_dataset(patches, patches_masks)
+            spatches_names = self._save_train_dataset(patches, patches_masks)
 
         print_info("{} patches generated from {} images for training and validation.".format(len(patches), len(data)))
-        return self._normalize(patches, patches_masks)
+        return spatches_names
+        # return self._normalize(patches, patches_masks)
 
     def get_data_list(self, set: str):
         return eval("self." + set + "_list")
@@ -174,10 +187,14 @@ class Dataset():
                 print_error("Failed to delete files: Reason: {}".format(e))
 
         num_digits = len(str(len(ims))) + 1
+        spatches_names = []
         for idx, (im, mask) in enumerate(zip(ims, masks)):
             bname = str(idx).zfill(num_digits) + ".png"
+            spatches_names.append(bname)
             cv2.imwrite(os.path.join(self._train_val_ims_path, bname), im)
             cv2.imwrite(os.path.join(self._train_val_masks_path, bname), mask)
+        self.list2txt(self._subpatches_file, spatches_names)
+        return spatches_names
 
     # STATIC
     @staticmethod
