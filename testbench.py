@@ -79,7 +79,7 @@ class TestBench:
             print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
                                                                                         iou_score))
             print_info("Saving validation predictions (patches) to disk.")
-            self._save_val_predictions(xval, yval, model, dataset)  # TODO: Fix
+            # self._save_val_predictions(xval, yval, model, dataset)  # TODO: Fix
 
             # 4. VALIDATION STAGE
             print_info("########## TESTING STAGE ##########")
@@ -105,8 +105,7 @@ class TestBench:
 
     def _prepare_data(self, dataset: Dataset):
         print_info("First split: Training+Validation & Testing split:")
-        xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE,
-                                                                             overwrite=True)
+        xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
 
         print_info("LOADING DATA FROM DISK FOR PROCEEDING TO TRAINING AND TEST:")
         print_info("Loading images from: {}".format(self._ims_path))
@@ -118,7 +117,7 @@ class TestBench:
         xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
 
         print_info("DATA PREPROCESSING FOR TRAINING.")
-        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=params.RESIZE_RATIO, from_disk=params.LOAD_SPATCHES)
+        patches_names, (x_t, y_t) = dataset.get_spatches(ims, masks, rz_ratio=params.RESIZE_RATIO)
         print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
 
         print_info("Second split: Training & Validation split:")

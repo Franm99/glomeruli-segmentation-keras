@@ -10,13 +10,16 @@ import parameters as params
 
 
 class MaskGenerator:
-    def __init__(self, mask_type: MaskType = MaskType.CIRCULAR, mask_size: Optional[int] = params.MASK_SIZE,
-                 apply_simplex: bool = params.APPLY_SIMPLEX):
+    def __init__(self, ims_names: List[str], mask_type: MaskType = MaskType.CIRCULAR,
+                 mask_size: Optional[int] = params.MASK_SIZE, apply_simplex: bool = params.APPLY_SIMPLEX):
+        self._ims_names = ims_names
         self._mask_type = mask_type
         self._mask_size = mask_size
         self._apply_simplex = apply_simplex
         self._ims = params.DATASET_PATH + '/ims'
+        self._ims_file_list = [self._ims + '/' + i + '.png' for i in self._ims_names]
         self._glomeruli_coords = params.DATASET_PATH + '/xml'
+        self._xml_file_list = [self._glomeruli_coords + '/' + i + '.xml' for i in self._ims_names]
 
         if mask_type == MaskType.CIRCULAR:
             self._masks = params.DATASET_PATH + '/gt/circles'
@@ -27,28 +30,25 @@ class MaskGenerator:
         else:
             self._masks = params.DATASET_PATH + 'gt/bboxes'
 
-        self._xml_file_list = glob.glob(self._glomeruli_coords + '/*')
-        self._xml_file_list.sort()
-        self._ims_file_list = glob.glob(self._ims + '/*')
-        self._ims_file_list.sort()
-
         # Execute the mask generation process
-        self._masks_file_list = self._run()
+        self._run()
 
     def get_masks_files(self):
-        return self._masks_file_list
+        return [self._masks + '/' + name + '.png' for name in self._ims_names]
 
-    def _run(self) -> List[str]:
+    def _run(self):
         print_info("Generating masks for groundtruth...")
         for xml_file, im_file in tqdm(zip(self._xml_file_list, self._ims_file_list),
                                       total=len(self._ims_file_list), desc="Generating masks"):
             points = get_data_from_xml(xml_file, mask_size=self._mask_size, apply_simplex=self._apply_simplex)
             mask = self._get_mask(points)
             # self._plot_sample(im_file, mask)  # DEBUG
+
+            # Save mask to disk
             self._save_im(mask, im_file)
-        res = glob.glob(self._masks + '/*.png')
-        res.sort()
-        return res
+        # res = glob.glob(self._masks + '/*.png')
+        # res.sort()
+        # return res
 
     def _get_mask(self, data: Dict[int, List[Tuple[int, int]]]) -> np.ndarray:
         """
@@ -75,8 +75,6 @@ class MaskGenerator:
 
     def _save_im(self, mask, im_file) -> None:
         mask_name = os.path.basename(im_file)
-        if not os.path.exists(self._masks):
-            os.mkdir(self._masks)
         cv2.imwrite(os.path.join(self._masks, mask_name), mask)
 
     @staticmethod

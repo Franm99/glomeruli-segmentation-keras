@@ -29,6 +29,7 @@ class Dataset():
         """
         # Paths
         self._ims_path = params.DATASET_PATH + '/ims'
+        self._ims_list_path = params.DATASET_PATH + '/ims.txt'
         self._xmls_path = params.DATASET_PATH + '/xml'
         self._masks_path = params.DATASET_PATH + '/gt/circles'
         self._train_val_file = params.DATASET_PATH + '/train_val.txt'
@@ -50,32 +51,27 @@ class Dataset():
         if self._mask_simplex:
             self._masks_path = self._masks_path + "_simplex"
 
-        # List of data paths (instead of numpy arrays)
-        self.ims_list = glob.glob(self._ims_path + '/*')
-        self.ims_list.sort()
+        self.ims_names = [i[:-4] for i in os.listdir(self._ims_path)]
+        self.ims_list = [self._ims_path + '/' + i + '.png' for i in self.ims_names]
+        self.xml_list = [self._xmls_path + '/' + i + '.xml' for i in self.ims_names]
+
+        # Images names will be writen to a file, and later used to load the remaining data.
+        self.list2txt(self._ims_list_path, self.ims_names)
+
+        if os.path.isdir(self._masks_path):
+            self.clear_dir(self._masks_path)
         self.masks_list = self._load_masks(self._mask_size, self._mask_simplex)
-        self.masks_list.sort()
         if self._staining != "ALL":  # Load just the samples for the selected staining
             self.ims_list = [i for i in self.ims_list if self._staining in i]
             self.masks_list = [i for i in self.masks_list if self._staining in i]
 
-    def split_trainval_test(self, train_size: float, overwrite: bool = True):
-        if not overwrite:
-            print_info("Split previously done. Reading from file...")
-            self.trainval_list = self.txt2list(self._train_val_file)
-            self.test_list = self.txt2list(self._test_file)
-            xtrainval = [os.path.join(self._ims_path, i) for i in self.trainval_list]
-            ytrainval = [os.path.join(self._masks_path, i) for i in self.trainval_list]
-            xtest = [os.path.join(self._ims_path, i) for i in self.test_list]
-            ytest = [os.path.join(self._masks_path, i) for i in self.test_list]
-        else:
-            xtrainval, xtest, ytrainval, ytest = train_test_split(self.ims_list, self.masks_list,
-                                                                  train_size=train_size, shuffle=True)
-            print_info("Overwriting new split.")
-            self.trainval_list = [os.path.basename(i) for i in xtrainval]
-            self.test_list = [os.path.basename(i) for i in xtest]
-            self.list2txt(self._train_val_file, self.trainval_list)
-            self.list2txt(self._test_file, self.test_list)
+    def split_trainval_test(self, train_size: float):
+        xtrainval, xtest, ytrainval, ytest = train_test_split(self.ims_list, self.masks_list,
+                                                              train_size=train_size, shuffle=True)
+        self.trainval_list = [os.path.basename(i) for i in xtrainval]
+        self.test_list = [os.path.basename(i) for i in xtest]
+        self.list2txt(self._train_val_file, self.trainval_list)
+        self.list2txt(self._test_file, self.test_list)
         print_info("{} images for Train/Validation and {} for testing".format(len(xtrainval), len(xtest)))
         return xtrainval, xtest, ytrainval, ytest
 
@@ -102,44 +98,32 @@ class Dataset():
         return ims, masks
 
     @timer
-    def get_spatches(self, data, data_masks, rz_ratio: int, from_disk: bool):
+    def get_spatches(self, data, data_masks, rz_ratio: int):
         patches = []
         patches_masks = []
-        print_info("Load sub-patches from disk: \t{}".format("Y" if from_disk else "N"))
-        if from_disk:
-            # TODO: Better practice: load from file instead of using glob.glob(), as the loading order can vary from OS.
-            print_info("Sub-patches already located in memory. Reading from file")
-            print_info("Images at: {}".format(self._train_val_ims_path))
-            print_info("Masks at:  {}".format(self._train_val_masks_path))
-            patches_bnames = self.txt2list(self._subpatches_file)
-            patches_files = [os.path.join(self._train_val_ims_path, i) for i in patches_bnames]
-            patches_masks_files = [os.path.join(self._train_val_masks_path, i) for i in patches_bnames]
-            patches, patches_masks = self.load_pairs(patches_files, patches_masks_files)
-        else:
-            print_info("NO PATCHES HAVE BEEN FOUND IN DISK.")
-            print_info("Generating sub-patches for training stage and saving to disk...")
-            patch_size_or = params.UNET_INPUT_SIZE * rz_ratio
-            for im, mask in tqdm(zip(data, data_masks), total=len(data), desc = "Generating subpatches"):
-                [h, w] = im.shape
-                for x in range(0, w, patch_size_or):
-                    if x+patch_size_or >= w:
-                        x = w - patch_size_or
-                    for y in range(0, h, patch_size_or):
-                        if y+patch_size_or >= h:
-                            y = h - patch_size_or
-                        patch_arr = im[y:y+patch_size_or, x:x+patch_size_or]
-                        mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
-                        if self._filter(mask_arr):
-                            # Convert to PIL for resizing and returning to numpy array format.
-                            patch = np.asarray(Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
-                            patch_mask = np.asarray(Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
-                            patches.append(patch)
-                            patches_masks.append(patch_mask)
-            # Save train dataset to disk for later use
-            spatches_names = self._save_train_dataset(patches, patches_masks)
+        print_info("Generating sub-patches for training stage and saving to disk...")
+        patch_size_or = params.UNET_INPUT_SIZE * rz_ratio
+        for im, mask in tqdm(zip(data, data_masks), total=len(data), desc = "Generating subpatches"):
+            [h, w] = im.shape
+            for x in range(0, w, patch_size_or):
+                if x+patch_size_or >= w:
+                    x = w - patch_size_or
+                for y in range(0, h, patch_size_or):
+                    if y+patch_size_or >= h:
+                        y = h - patch_size_or
+                    patch_arr = im[y:y+patch_size_or, x:x+patch_size_or]
+                    mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
+                    if self._filter(mask_arr):
+                        # Convert to PIL for resizing and returning to numpy array format.
+                        patch = np.asarray(Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                        patch_mask = np.asarray(Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                        patches.append(patch)
+                        patches_masks.append(patch_mask)
+        # Save train dataset to disk for later use
+        spatches_names = self._save_train_dataset(patches, patches_masks)
 
         print_info("{} patches generated from {} images for training and validation.".format(len(patches), len(data)))
-        return spatches_names
+        return spatches_names, self._normalize(patches, patches_masks)
         # return self._normalize(patches, patches_masks)
 
     def get_data_list(self, set: str):
@@ -148,17 +132,13 @@ class Dataset():
     # PRIVATE
     @timer
     def _load_masks(self, mask_size: Optional[int], mask_simplex: bool):
-        # Check for existing masks folder for desired size
-        print_info("Checking if ground-truth masks exists or either they need to be generated.")
-        if not os.path.isdir(self._masks_path):
-            print_warn("MASKS DO NOT EXIST YET. GENERATING GROUND-TRUTH.")
-            maskGenerator = MaskGenerator(mask_size=mask_size, apply_simplex=mask_simplex)
-            return maskGenerator.get_masks_files()
-        res = glob.glob(self._masks_path + '/*.png')
-        res.sort()
-        print_info("TAKING GROUND-TRUTH MASKS FROM DISK.")
-        print_info("Masks located in: {}".format(self._masks_path))
-        return res
+        """ Function to generate a ground-truth (masks) from xml info. """
+        if os.path.isdir(self._masks_path):
+            # If masks already exists, delete.
+            self.clear_dir(self._masks_path)
+        ims_names = self.txt2list(self._ims_list_path)
+        maskGenerator = MaskGenerator(ims_names=ims_names, mask_size=mask_size, apply_simplex=mask_simplex)
+        return maskGenerator.get_masks_files()
 
     @staticmethod
     def _filter(patch: np.ndarray) -> bool:  # Modify: not include sub-patches without glomeruli
@@ -174,17 +154,10 @@ class Dataset():
         if not os.path.isdir(self._train_val_ims_path):
             os.mkdir(self._train_val_ims_path)
             os.mkdir(self._train_val_masks_path)
+
         # Clear data if existing
-        prev_ims = glob.glob(self._train_val_ims_path + '/*')
-        prev_ims.sort()
-        prev_masks = glob.glob(self._train_val_masks_path + '/*')
-        prev_masks.sort()
-        for im, mask in zip(prev_ims, prev_masks):
-            try:
-                os.unlink(im)
-                os.unlink(mask)
-            except Exception as e:
-                print_error("Failed to delete files: Reason: {}".format(e))
+        self.clear_dir(self._train_val_ims_path)
+        self.clear_dir(self._train_val_masks_path)
 
         num_digits = len(str(len(ims))) + 1
         spatches_names = []
@@ -200,13 +173,22 @@ class Dataset():
     @staticmethod
     def txt2list(fname):
         with open(fname, 'r') as f:
-            return [line for line in f.readlines()]
+            return [line.rstrip('\n') for line in f.readlines()]
 
     @staticmethod
     def list2txt(fname, data):
         with open(fname, 'w') as f:
             for i in data:
                 f.write(i + "\n")
+
+    @staticmethod
+    def clear_dir(dpath : str):
+        files = glob.glob(dpath + '/*')
+        for file in files:
+            try:
+                os.unlink(file)
+            except Exception as e:
+                print_error("Failed to delete files: Reason: {}".format(e))
 
     @staticmethod
     def _normalize(ims, masks):
