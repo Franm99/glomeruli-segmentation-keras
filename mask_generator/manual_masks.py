@@ -7,6 +7,7 @@ import cv2.cv2 as cv2
 import matplotlib.pyplot as plt
 from typing import Tuple
 from tqdm import tqdm
+from bs4 import BeautifulSoup
 
 
 def contours2mask(im: np.ndarray, color: Tuple[int, int, int]) -> np.ndarray:
@@ -49,5 +50,39 @@ def get_masks():
         cv2.imwrite(output_name, mask)
 
 
+def coordinates_over_images():
+    ims_path = params.DATASET_PATH + '/ims'
+    xml_path = params.DATASET_PATH + '/xml'
+    output_path = params.DATASET_PATH + '/marked_ims'
+    if not os.path.isdir(output_path):
+        os.mkdir(output_path)
+    ims_names = glob.glob(ims_path + '/*')
+    xml_names = [os.path.join(xml_path, os.path.basename(i)[:-4] + '.xml') for i in ims_names]
+    for im_name, xml_name in tqdm(zip(ims_names, xml_names), total=len(ims_names)):
+        im = cv2.imread(im_name, cv2.IMREAD_COLOR)
+        points = get_coords(im_name, xml_name)
+        for point in points:
+            im = cv2.circle(im, point, radius=10, color=(0, 0, 255), thickness=20)
+        cv2.imwrite(os.path.join(output_path, os.path.basename(im_name)), im)
+
+
+def get_coords(im_name, xml_name):
+    with open(xml_name, 'r') as f:
+        data = f.read()
+    bs_data = BeautifulSoup(data, "xml")
+    counts = bs_data.find("Counts").find_all("Count")
+    p = []
+    for count in counts:
+        points = count.find_all('point')
+        for point in points:
+            p.append((int(point.get('X')), int(point.get('Y'))))
+    return p
+
+
+
+
+
+
 if __name__ == '__main__':
-    get_masks()
+    # get_masks()
+    coordinates_over_images()
