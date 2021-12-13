@@ -136,6 +136,8 @@ class Dataset():
         if os.path.isdir(self._masks_path):
             # If masks already exists, delete.
             self.clear_dir(self._masks_path)
+        else:
+            os.mkdir(self._masks_path)
         ims_names = self.txt2list(self._ims_list_path)
         maskGenerator = MaskGenerator(ims_names=ims_names, mask_size=mask_size, apply_simplex=mask_simplex)
         return maskGenerator.get_masks_files()
