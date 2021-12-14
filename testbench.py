@@ -265,6 +265,10 @@ class TestBench:
             f.write('TRAIN_SIZE={}\n'.format(params.TRAIN_SIZE))
             f.write('BATCH_SIZE={}\n'.format(params.BATCH_SIZE))
             f.write('EPOCHS={}\n'.format(params.EPOCHS))
+            f.write('LEARNING_RATE={}\n'.format(params.LEARNING_RATE))
+            f.write('REDUCE_LR={}\n'.format('Y' if params.ACTIVATE_REDUCELR else 'N'))
+            f.write('MIN_LEARNING_RATE={}\n'.format(params.MIN_LEARNING_RATE))
+            f.write('REDUCELR_PATIENCE={}\n'.format(params.REDUCELR_PATIENCE))
             f.write('ES_PATIENCE={}\n'.format(params.ES_PATIENCE))
             f.write("--------------------------------------\n")
             # Write training results

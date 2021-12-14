@@ -2,8 +2,10 @@
 
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
-DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
+# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
 # DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
+
 
 OUTPUT_BASENAME = 'output'
 TEST_IMS_PATH = DATASET_PATH + '/train_val/patches'
@@ -54,5 +56,5 @@ ACTIVATE_REDUCELR = True
 LOAD_SPATCHES = False
 
 DEBUG_LIMIT = None
-MASK_SIZE = 250
+MASK_SIZE = 100
 APPLY_SIMPLEX = False
