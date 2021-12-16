@@ -67,7 +67,7 @@ class Dataset():
 
     def split_trainval_test(self, train_size: float):
         xtrainval, xtest, ytrainval, ytest = train_test_split(self.ims_list, self.masks_list,
-                                                              train_size=train_size, shuffle=True)
+                                                              train_size=train_size, shuffle=False)
         self.trainval_list = [os.path.basename(i) for i in xtrainval]
         self.test_list = [os.path.basename(i) for i in xtest]
         self.list2txt(self._train_val_file, self.trainval_list)
