@@ -1,6 +1,12 @@
 """
-TODO list:
-- Redirect prints to a log file filtering just those with the "info", "warn" and "err" blueprints"
+TODO
+Redirect prints to a log file filtering just those with the "info", "warn" and "err" blueprints"
+
+TODO
+Write parameters from the last training performed to a txt. For next training, this file will
+be read to check if there are changes that force to generate new data.
+
+TODO: Refactoring and documentation
 """
 
 from unet_model import unet_model
@@ -12,11 +18,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 from dataset import Dataset
-from utils import get_data_from_xml, print_info
+from utils import get_data_from_xml, print_info, check_gpu_availability
 import cv2.cv2 as cv2
 from tqdm import tqdm
 import parameters as params
 import time
+
+check_gpu_availability()
 
 
 def get_model():
@@ -70,9 +78,10 @@ class TestBench:
             print_info("Saving loss and accuracy results collected over epochs.")
             self._save_results(history)
             iou_score = self.compute_IoU(xval, yval, model, th=params.PREDICTION_THRESHOLD)
-            print_info("IoU from validation (threshold={}): {}".format(params.PREDICTION_THRESHOLD, iou_score))
+            print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
+                                                                                        iou_score))
             print_info("Saving validation predictions (patches) to disk.")
-            # self._save_val_predictions(xval, model, dataset)  # TODO: Fix
+            # self._save_val_predictions(xval, yval, model, dataset)  # TODO: Fix
 
             # 4. VALIDATION STAGE
             print_info("########## TESTING STAGE ##########")
@@ -98,7 +107,7 @@ class TestBench:
 
     def _prepare_data(self, dataset: Dataset):
         print_info("First split: Training+Validation & Testing split:")
-        xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=0.9, overwrite=True)
+        xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
 
         print_info("LOADING DATA FROM DISK FOR PROCEEDING TO TRAINING AND TEST:")
         print_info("Loading images from: {}".format(self._ims_path))
@@ -110,7 +119,7 @@ class TestBench:
         xtest, ytest = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
 
         print_info("DATA PREPROCESSING FOR TRAINING.")
-        x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=params.RESIZE_RATIO, from_disk=False)
+        patches_names, (x_t, y_t) = dataset.get_spatches(ims, masks, rz_ratio=params.RESIZE_RATIO)
         print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
 
         print_info("Second split: Training & Validation split:")
@@ -226,6 +235,9 @@ class TestBench:
         plt.ylabel("Accuracy")
         plt.legend()
         plt.savefig(os.path.join(self.output_folder_path, "acc.png"))
+        print_info("You can check the training and validation results during epochs in:")
+        print_info("- {}".format(os.path.join(self.output_folder_path, "loss.png")))
+        print_info("- {}".format(os.path.join(self.output_folder_path, "acc.png")))
 
     def compute_IoU(self, xtest, ytest, model, th: float = params.PREDICTION_THRESHOLD):
         ypred = model.predict(xtest)
@@ -233,22 +245,21 @@ class TestBench:
         intersection = np.logical_and(ytest, ypred_th)
         union = np.logical_or(ytest, ypred_th)
         iou_score = np.sum(intersection) / np.sum(union)
-        print_info("IoU score is {}".format(iou_score))
         return iou_score
 
-    # def _save_val_predictions(self, xval, model), dataset:
-    #     for val_im, val_name in tqdm(xval, dataset.test_list), total=len(xtest), desc="Validation predictions"):
-    #         test_img_norm = test_img[:, :, 0][:, :, None]
-    #         test_img_input = np.expand_dims(test_img_norm, 0)
-    #         prediction = (model.predict(test_img_input)[0, :, :, 0] > params.PREDICTION_THRESHOLD).astype(np.uint8)
-    #         test_path = os.path.join(self.pred_path, test_name)
-    #         cv2.imwrite(test_path, prediction)
+    def _save_val_predictions(self, xval, yval, model, dataset):
+        for val_im, val_name in tqdm(zip(xval, dataset.test_list), total=len(xval), desc="Validation predictions"):
+            test_img_norm = test_img[:, :, 0][:, :, None]
+            test_img_input = np.expand_dims(test_img_norm, 0)
+            prediction = (model.predict(test_img_input)[0, :, :, 0] > params.PREDICTION_THRESHOLD).astype(np.uint8)
+            test_path = os.path.join(self.pred_path, test_name)
+            cv2.imwrite(test_path, prediction)
 
     def save_train_log(self, history, iou_score, count_ptg):
         log_fname = os.path.join(self.output_folder_path, time.strftime("%Y%m%d-%H%M%S") + '.txt')
         with open(log_fname, 'w') as f:
             # Write parameters used
-            f.write("TRAINING PARAMETERS\n")
+            f.write("TRAINING PARAMETERS:\n")
             f.write('TRAIN_SIZE={}\n'.format(params.TRAIN_SIZE))
             f.write('STAINING={}\n'.format(params.STAINING))
             f.write('RESIZE_RATIO={}\n'.format(params.TRAIN_SIZE))
@@ -256,6 +267,10 @@ class TestBench:
             f.write('TRAIN_SIZE={}\n'.format(params.TRAIN_SIZE))
             f.write('BATCH_SIZE={}\n'.format(params.BATCH_SIZE))
             f.write('EPOCHS={}\n'.format(params.EPOCHS))
+            f.write('LEARNING_RATE={}\n'.format(params.LEARNING_RATE))
+            f.write('REDUCE_LR={}\n'.format('Y' if params.ACTIVATE_REDUCELR else 'N'))
+            f.write('MIN_LEARNING_RATE={}\n'.format(params.MIN_LEARNING_RATE))
+            f.write('REDUCELR_PATIENCE={}\n'.format(params.REDUCELR_PATIENCE))
             f.write('ES_PATIENCE={}\n'.format(params.ES_PATIENCE))
             f.write("--------------------------------------\n")
             # Write training results
@@ -264,10 +279,10 @@ class TestBench:
             val_loss = history.history['val_loss']
             acc = history.history['accuracy']
             val_acc = history.history['val_accuracy']
-            f.write('TRAINING_LOSS={}\n'.format(str(loss)))
-            f.write('VALIDATION_LOSS={}\n'.format(str(val_loss)))
-            f.write('TRAINING_ACC={}\n'.format(str(acc)))
-            f.write('VALIDATION_ACC={}\n'.format(str(val_acc)))
+            f.write('TRAINING_LOSS={}\n'.format(str(loss[-1])))
+            f.write('VALIDATION_LOSS={}\n'.format(str(val_loss[-1])))
+            f.write('TRAINING_ACC={}\n'.format(str(acc[-1])))
+            f.write('VALIDATION_ACC={}\n'.format(str(val_acc[-1])))
             f.write('IoU_VAL_SCORE={}\n'.format(iou_score))
             f.write("--------------------------------------\n")
             # write testing results
