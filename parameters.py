@@ -2,8 +2,8 @@
 
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
-DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
-# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+# DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
+DATASET_PATH = 'D:/DataGlomeruli'  # Windows
 # DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 
@@ -18,15 +18,16 @@ RESIZE_RATIO = 4
 STAINING = 'HE'
 
 # Model parameters
-LEARNING_RATE = 0.1
+LEARNING_RATE = 0.001
 MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
     'accuracy',
 ]
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9
+SHUFFLE_RAND_STATE = 30  # Integer from 0 to 42 (inclusive)
 TRAIN_SIZE = 0.8
-MIN_LEARNING_RATE = 0.001
+MIN_LEARNING_RATE = 0.0001
 PREDICTION_THRESHOLD = 0.5
 BATCH_SIZE = 16
 EPOCHS = 100
@@ -52,7 +53,7 @@ for fn, kwargs in CALLBACKS.items():
     callbacks.append(fn(**kwargs))
 """
 SAVE_TRAIN_LOGS = False
-ACTIVATE_REDUCELR = True
+ACTIVATE_REDUCELR = False
 LOAD_SPATCHES = False
 
 DEBUG_LIMIT = None

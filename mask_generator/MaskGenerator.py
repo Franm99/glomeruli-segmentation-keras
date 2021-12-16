@@ -27,8 +27,10 @@ class MaskGenerator:
                 self._masks = self._masks + str(self._mask_size)
             if self._apply_simplex:
                 self._masks = self._masks + "_simplex"
-        else:
+        elif mask_type == MaskType.BBOX:
             self._masks = params.DATASET_PATH + 'gt/bboxes'
+        else:
+            self._masks = params.DATASET_PATH + 'gt/masks'
 
         # Execute the mask generation process
         self._run()

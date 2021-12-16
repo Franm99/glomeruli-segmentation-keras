@@ -29,16 +29,19 @@ class Dataset():
         """
         # Paths
         self._ims_path = params.DATASET_PATH + '/ims'
-        self._ims_list_path = params.DATASET_PATH + '/ims.txt'
         self._xmls_path = params.DATASET_PATH + '/xml'
         self._masks_path = params.DATASET_PATH + '/gt/circles'
-        self._train_val_file = params.DATASET_PATH + '/train_val.txt'
-        self._test_file = params.DATASET_PATH + '/test.txt'
         self._train_val_path = params.DATASET_PATH + '/train_val'
-        self._train_val_ims_path = self._train_val_path + '/patches'
-        self._train_val_masks_path = self._train_val_path + '/patches_masks'
-        self._subpatches_file = self._train_val_path + '/subpatches_list.txt'
+        self._train_val_ims_path = self._train_val_path + '/patches'  # For saving train-val sub-patches
+        self._train_val_masks_path = self._train_val_path + '/patches_masks'  # For saving train-val sub-masks
 
+        # Files to keep track of the data used
+        self._ims_list_path = params.DATASET_PATH + '/ims.txt'  # For saving patches names
+        self._train_val_file = params.DATASET_PATH + '/train_val.txt'  # For saving names of train-val images (both)
+        self._test_file = params.DATASET_PATH + '/test.txt'  # For saving names of test images
+        self._subpatches_file = self._train_val_path + '/subpatches_list.txt'  # For saving names of train-val sub-patches
+
+        # Instance parameters initialization
         self._staining = staining
         self._mask_size = mask_size
         self._mask_simplex = mask_simplex
@@ -58,16 +61,15 @@ class Dataset():
         # Images names will be writen to a file, and later used to load the remaining data.
         self.list2txt(self._ims_list_path, self.ims_names)
 
-        if os.path.isdir(self._masks_path):
-            self.clear_dir(self._masks_path)
+        # By now, everytime the training stage is launched, new masks are computed and saved.
         self.masks_list = self._load_masks(self._mask_size, self._mask_simplex)
         if self._staining != "ALL":  # Load just the samples for the selected staining
             self.ims_list = [i for i in self.ims_list if self._staining in i]
             self.masks_list = [i for i in self.masks_list if self._staining in i]
 
     def split_trainval_test(self, train_size: float):
-        xtrainval, xtest, ytrainval, ytest = train_test_split(self.ims_list, self.masks_list,
-                                                              train_size=train_size, shuffle=False)
+        xtrainval, xtest, ytrainval, ytest = train_test_split(self.ims_list, self.masks_list, train_size=train_size,
+                                                              shuffle=True, random_state=params.SHUFFLE_RAND_STATE)
         self.trainval_list = [os.path.basename(i) for i in xtrainval]
         self.test_list = [os.path.basename(i) for i in xtest]
         self.list2txt(self._train_val_file, self.trainval_list)
@@ -202,7 +204,7 @@ class Dataset():
 # Testing
 if __name__ == '__main__':
     print_info("Building dataset...")
-    dataset = Dataset(staining="HE")
+    dataset = Dataset(staining="HE", mask_size=None, mask_simplex=False)
     xtrainval, xtest, ytrainval, ytest = dataset.split_trainval_test(train_size=0.9)
     print_info("Train/Validation set size: {}".format(len(xtrainval)))
     print_info("Test set size: {}".format(len(xtest)))
