@@ -130,7 +130,8 @@ class TestBench:
         model = get_model()
         weights_backup = self.weights_path + '/backup.hdf5'
         checkpoint_cb = cb.ModelCheckpoint(weights_backup, verbose=1, save_best_only=True)
-        earlystopping_cb = cb.EarlyStopping(monitor='val_loss', patience=params.ES_PATIENCE)
+        # earlystopping_cb = cb.EarlyStopping(monitor='val_loss', patience=params.ES_PATIENCE)
+        earlystopping_cb = cb.EarlyStopping(monitor='val_mean_io_u', patience=params.ES_PATIENCE)
         callbacks = [checkpoint_cb, earlystopping_cb]  # These callbacks are always used
 
         if params.SAVE_TRAIN_LOGS:

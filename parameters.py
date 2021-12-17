@@ -1,5 +1,5 @@
 """ Constants to import in other scripts """
-
+from tensorflow.keras.metrics import MeanIoU
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
 # DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
@@ -20,7 +20,8 @@ STAINING = 'HE'
 # Model parameters
 LEARNING_RATE = 0.001
 MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
-    'accuracy',
+    # 'accuracy',
+    MeanIoU(num_classes=2)  # Most recommendable metric for Image Segmentation
 ]
 
 # Training parameters and hyper-parameters
