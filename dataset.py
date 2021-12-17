@@ -69,7 +69,7 @@ class Dataset():
 
     def split_trainval_test(self, train_size: float):
         xtrainval, xtest, ytrainval, ytest = train_test_split(self.ims_list, self.masks_list, train_size=train_size,
-                                                              shuffle=True, random_state=params.SHUFFLE_RAND_STATE)
+                                                              shuffle=True, random_state=params.TRAINVAL_TEST_RAND_STATE)
         self.trainval_list = [os.path.basename(i) for i in xtrainval]
         self.test_list = [os.path.basename(i) for i in xtest]
         self.list2txt(self._train_val_file, self.trainval_list)
@@ -78,7 +78,8 @@ class Dataset():
         return xtrainval, xtest, ytrainval, ytest
 
     def split_train_val(self, ims, masks, test_size: float = 0.1):
-        xtrain, xval, ytrain, yval = train_test_split(ims, masks, test_size=test_size, shuffle=False)
+        xtrain, xval, ytrain, yval = train_test_split(ims, masks, test_size=test_size,
+                                                      shuffle=True, random_state=params.TRAIN_VAL_RAND_STATE)
         print_info("{} sub-patches for training, {} for validation.".format(len(xtrain), len(xval)))
         return xtrain, xval, ytrain, yval
 

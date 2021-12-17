@@ -25,7 +25,8 @@ MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9
-SHUFFLE_RAND_STATE = 30  # Integer from 0 to 42 (inclusive)
+TRAINVAL_TEST_RAND_STATE = 30  # Integer from 0 to 42 (inclusive)
+TRAIN_VAL_RAND_STATE = 30  # Integer from 0 to 42 (inclusive)
 TRAIN_SIZE = 0.8
 MIN_LEARNING_RATE = 0.0001
 PREDICTION_THRESHOLD = 0.5
