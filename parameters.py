@@ -20,10 +20,10 @@ STAINING = 'HE'
 
 # Model parameters
 LEARNING_RATE = 0.001
-MONITORED_METRIC = MeanIoU(num_classes=2)
+MONITORED_METRIC = "val_mean_iou"
 MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
     # 'accuracy',
-    MONITORED_METRIC,
+    MeanIoU(num_classes=2)
 ]
 
 # Mask Generator
