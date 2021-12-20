@@ -21,24 +21,25 @@ class MaskGenerator:
         self._glomeruli_coords = params.DATASET_PATH + '/xml'
         self._xml_file_list = [self._glomeruli_coords + '/' + i + '.xml' for i in self._ims_names]
 
-        if mask_type == MaskType.CIRCULAR:
-            self._masks = params.DATASET_PATH + '/gt/circles'
-            if self._mask_size:
-                self._masks = self._masks + str(self._mask_size)
-            if self._apply_simplex:
-                self._masks = self._masks + "_simplex"
-        elif mask_type == MaskType.BBOX:
-            self._masks = params.DATASET_PATH + 'gt/bboxes'
+        if mask_type == MaskType.HANDCRAFTED:
+            self._masks = params.DATASET_PATH + '/gt/masks'
         else:
-            self._masks = params.DATASET_PATH + 'gt/masks'
-
-        # Execute the mask generation process
-        self._run()
+            # Generate synthetic masks
+            if mask_type == MaskType.CIRCULAR:
+                self._masks = params.DATASET_PATH + '/gt/circles'
+                if self._mask_size:
+                    self._masks = self._masks + str(self._mask_size)
+                if self._apply_simplex:
+                    self._masks = self._masks + "_simplex"
+            elif mask_type == MaskType.BBOX:
+                self._masks = params.DATASET_PATH + 'gt/bboxes'
+            # Execute the mask generation process to obtain synthetic masks
+            self._gen_masks()
 
     def get_masks_files(self):
         return [self._masks + '/' + name + '.png' for name in self._ims_names]
 
-    def _run(self):
+    def _gen_masks(self):
         print_info("Generating masks for groundtruth...")
         for xml_file, im_file in tqdm(zip(self._xml_file_list, self._ims_file_list),
                                       total=len(self._ims_file_list), desc="Generating masks"):

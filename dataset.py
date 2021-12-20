@@ -10,7 +10,7 @@ import os
 import glob
 from mask_generator.MaskGenerator import MaskGenerator
 from sklearn.model_selection import train_test_split
-from utils import print_info, print_warn, print_error, timer
+from utils import print_info, print_warn, print_error, timer, MaskType
 from tqdm import tqdm
 import cv2.cv2 as cv2
 import matplotlib.pyplot as plt
@@ -23,14 +23,24 @@ from typing import Optional
 
 
 class Dataset():
-    def __init__(self, staining: str, mask_size: Optional[int], mask_simplex: bool):
+    def __init__(self, staining: str, mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool):
         """ Initialize Dataset.
         Paths initialization to find data in disk. Images and ground-truth masks full-paths are loaded.
         """
         # Paths
         self._ims_path = params.DATASET_PATH + '/ims'
         self._xmls_path = params.DATASET_PATH + '/xml'
-        self._masks_path = params.DATASET_PATH + '/gt/circles'
+        if mask_type == MaskType.HANDCRAFTED:
+            self._masks_path = params.DATASET_PATH + '/gt/masks'
+        else:
+            if mask_type == MaskType.CIRCULAR:
+                self._masks_path = params.DATASET_PATH + '/gt/circles'
+                if mask_size:
+                    self._masks_path = self._masks_path + str(self._mask_size)
+                if mask_simplex:
+                    self._masks_path = self._masks_path + "_simplex"
+            else:
+                self._masks_path = params.DATASET_PATH + '/gt/bboxes'
         self._train_val_path = params.DATASET_PATH + '/train_val'
         self._train_val_ims_path = self._train_val_path + '/patches'  # For saving train-val sub-patches
         self._train_val_masks_path = self._train_val_path + '/patches_masks'  # For saving train-val sub-masks
@@ -43,16 +53,11 @@ class Dataset():
 
         # Instance parameters initialization
         self._staining = staining
+        self._mask_type = mask_type
         self._mask_size = mask_size
         self._mask_simplex = mask_simplex
         self.trainval_list = []
         self.test_list = []
-
-        if self._mask_size:
-            self._masks_path = self._masks_path + str(self._mask_size)
-
-        if self._mask_simplex:
-            self._masks_path = self._masks_path + "_simplex"
 
         self.ims_names = [i[:-4] for i in os.listdir(self._ims_path)]
         self.ims_list = [self._ims_path + '/' + i + '.png' for i in self.ims_names]
@@ -62,7 +67,7 @@ class Dataset():
         self.list2txt(self._ims_list_path, self.ims_names)
 
         # By now, everytime the training stage is launched, new masks are computed and saved.
-        self.masks_list = self._load_masks(self._mask_size, self._mask_simplex)
+        self.masks_list = self._load_masks(self._mask_type, self._mask_size, self._mask_simplex)
         if self._staining != "ALL":  # Load just the samples for the selected staining
             self.ims_list = [i for i in self.ims_list if self._staining in i]
             self.masks_list = [i for i in self.masks_list if self._staining in i]
@@ -134,15 +139,17 @@ class Dataset():
 
     # PRIVATE
     @timer
-    def _load_masks(self, mask_size: Optional[int], mask_simplex: bool):
+    def _load_masks(self, mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool):
         """ Function to generate a ground-truth (masks) from xml info. """
-        if os.path.isdir(self._masks_path):
-            # If masks already exists, delete.
-            self.clear_dir(self._masks_path)
-        else:
-            os.mkdir(self._masks_path)
         ims_names = self.txt2list(self._ims_list_path)
-        maskGenerator = MaskGenerator(ims_names=ims_names, mask_size=mask_size, apply_simplex=mask_simplex)
+        if mask_type != MaskType.HANDCRAFTED:
+            if os.path.isdir(self._masks_path):
+                # If masks already exists, delete.
+                self.clear_dir(self._masks_path)
+            else:
+                os.mkdir(self._masks_path)
+        maskGenerator = MaskGenerator(ims_names=ims_names, mask_type=params.MASK_TYPE,
+                                      mask_size=mask_size, apply_simplex=mask_simplex)
         return maskGenerator.get_masks_files()
 
     @staticmethod

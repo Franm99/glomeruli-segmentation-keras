@@ -1,5 +1,6 @@
 """ Constants to import in other scripts """
 from tensorflow.keras.metrics import MeanIoU
+from utils import MaskType
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
 # DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
@@ -19,10 +20,14 @@ STAINING = 'HE'
 
 # Model parameters
 LEARNING_RATE = 0.001
+MONITORED_METRIC = MeanIoU(num_classes=2)
 MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
     # 'accuracy',
-    MeanIoU(num_classes=2)  # Most recommendable metric for Image Segmentation
+    MONITORED_METRIC,
 ]
+
+# Mask Generator
+MASK_TYPE = MaskType.HANDCRAFTED
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9

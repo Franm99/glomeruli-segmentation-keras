@@ -17,6 +17,7 @@ class MaskType(Enum):
     """Type of masks to generate."""
     CIRCULAR = auto()
     BBOX = auto()
+    HANDCRAFTED = auto()
 
 
 class Size(Enum):  # Pixels for radius

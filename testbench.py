@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 from dataset import Dataset
-from utils import get_data_from_xml, print_info, check_gpu_availability
+from utils import get_data_from_xml, print_info, check_gpu_availability, MaskType
 import cv2.cv2 as cv2
 from tqdm import tqdm
 import parameters as params
@@ -34,7 +34,7 @@ def get_model():
 
 class TestBench:
     def __init__(self, stainings: List[str], limit_samples: Optional[float],
-                 mask_size: Optional[int], mask_simplex: bool):
+                 mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool):
         """ Initialize class variables and main paths. """
         self._stainings = stainings
         self._limit_samples = limit_samples
@@ -42,12 +42,17 @@ class TestBench:
         self._mask_simplex = mask_simplex
         self._xml_path = params.DATASET_PATH + '/xml'
         self._ims_path = params.DATASET_PATH + '/ims'
-        self._masks_path = params.DATASET_PATH + '/gt/circles'
-
-        if self._mask_size:
-            self._masks_path = self._masks_path + str(self._mask_size)
-        if self._mask_simplex:
-            self._masks_path = self._masks_path + "_simplex"
+        if mask_type == MaskType.HANDCRAFTED:
+            self._masks_path = params.DATASET_PATH + '/gt/masks'
+        else:
+            if mask_type == MaskType.CIRCULAR:
+                self._masks_path = params.DATASET_PATH + '/gt/circles'
+                if mask_size:
+                    self._masks_path = self._masks_path + str(self._mask_size)
+                if mask_simplex:
+                    self._masks_path = self._masks_path + "_simplex"
+            else:
+                self._masks_path = params.DATASET_PATH + '/gt/bboxes'
 
     def run(self):
         for staining in self._stainings:
@@ -56,7 +61,8 @@ class TestBench:
 
             # 1. Prepare Dataset
             print_info("########## PREPARE DATASET ##########")
-            dataset = Dataset(staining=staining, mask_size=self._mask_size, mask_simplex=self._mask_simplex)
+            dataset = Dataset(staining=staining, mask_type=params.MASK_TYPE,
+                              mask_size=self._mask_size, mask_simplex=self._mask_simplex)
             xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
 
             # 2. Prepare model
@@ -129,9 +135,10 @@ class TestBench:
     def _prepare_model(self):
         model = get_model()
         weights_backup = self.weights_path + '/backup.hdf5'
-        checkpoint_cb = cb.ModelCheckpoint(weights_backup, verbose=1, save_best_only=True)
+        checkpoint_cb = cb.ModelCheckpoint(filepath=weights_backup, monitor=params.MONITORED_METRIC,
+                                           verbose=1, save_best_only=True)
         # earlystopping_cb = cb.EarlyStopping(monitor='val_loss', patience=params.ES_PATIENCE)
-        earlystopping_cb = cb.EarlyStopping(monitor='val_mean_io_u', patience=params.ES_PATIENCE)
+        earlystopping_cb = cb.EarlyStopping(monitor=params.MONITORED_METRIC, patience=params.ES_PATIENCE)
         callbacks = [checkpoint_cb, earlystopping_cb]  # These callbacks are always used
 
         if params.SAVE_TRAIN_LOGS:
@@ -295,6 +302,7 @@ def Train():
     stainings = ["HE"]
     testbench = TestBench(stainings=stainings,
                           limit_samples=params.DEBUG_LIMIT,
+                          mask_type=params.MASK_TYPE,
                           mask_size=params.MASK_SIZE,
                           mask_simplex=params.APPLY_SIMPLEX)
     testbench.run()
