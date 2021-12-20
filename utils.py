@@ -27,7 +27,7 @@ class Size(Enum):  # Pixels for radius
     SMALL = 100
 
 
-GlomeruliClass = {
+GlomeruliClass = {  # TODO: re-classify sizes
     # Huge
     "MEMBRANOSO": Size.HUGE.value,
     "GNMP": Size.HUGE.value,

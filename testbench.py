@@ -233,16 +233,14 @@ class TestBench:
         plt.legend()
         plt.savefig(os.path.join(self.output_folder_path, "loss.png"))
 
-        acc = history.history['accuracy']
-        val_acc = history.history['val_accuracy']
+        meanIoU = history.history['val_mean_iou']
         plt.figure()
-        plt.plot(epochs, acc, 'y', label="Training_acc")
-        plt.plot(epochs, val_acc, 'r', label="Validation_acc")
-        plt.title("[{}] Training and validation accuracy".format(self.log_name))
+        plt.plot(epochs, meanIoU, 'y', label="Training_acc")
+        plt.title("[{}] Mean Intersection over Union".format(self.log_name))
         plt.xlabel("Epochs")
-        plt.ylabel("Accuracy")
+        plt.ylabel("MeanIoU")
         plt.legend()
-        plt.savefig(os.path.join(self.output_folder_path, "acc.png"))
+        plt.savefig(os.path.join(self.output_folder_path, "mean_iou.png"))
         print_info("You can check the training and validation results during epochs in:")
         print_info("- {}".format(os.path.join(self.output_folder_path, "loss.png")))
         print_info("- {}".format(os.path.join(self.output_folder_path, "acc.png")))
