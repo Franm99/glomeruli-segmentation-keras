@@ -87,9 +87,9 @@ class TestBench:
             print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
                                                                                         iou_score))
             print_info("Saving validation predictions (patches) to disk.")
-            # self._save_val_predictions(xval, yval, model, dataset)  # TODO: Fix
+            self._save_val_predictions(xval, yval, model, dataset)
 
-            # 4. VALIDATION STAGE
+            # 4. TESTING STAGE
             print_info("########## TESTING STAGE ##########")
             print_info("Computing predictions for testing set:")
             ptest = self._prepare_test(xtest, dataset.test_list, model)  # Test predictions
@@ -106,8 +106,10 @@ class TestBench:
         os.mkdir(self.output_folder_path)
         self.weights_path = os.path.join(self.output_folder_path, 'weights')
         os.mkdir(self.weights_path)
-        self.pred_path = os.path.join(self.output_folder_path, 'prediction')
-        os.mkdir(self.pred_path)
+        self.val_pred_path = os.path.join(self.output_folder_path, 'val_pred')
+        os.mkdir(self.val_pred_path)
+        self.test_pred_path = os.path.join(self.output_folder_path, 'test_pred')
+        os.mkdir(self.test_pred_path)
         self.logs_path = os.path.join(self.output_folder_path, 'logs')
         os.mkdir(self.logs_path)
 
@@ -164,7 +166,7 @@ class TestBench:
         for im, im_name in tqdm(zip(ims, ims_names), total=len(ims), desc="Test predictions"):
             pred = self._get_mask(im, org_size, model, th = params.PREDICTION_THRESHOLD)
             predictions.append(pred)
-            im_path = os.path.join(self.pred_path, im_name)
+            im_path = os.path.join(self.test_pred_path, im_name)
             cv2.imwrite(im_path, pred)
         return predictions
 
@@ -254,12 +256,22 @@ class TestBench:
         return iou_score
 
     def _save_val_predictions(self, xval, yval, model, dataset):
-        for val_im, val_name in tqdm(zip(xval, dataset.test_list), total=len(xval), desc="Validation predictions"):
-            test_img_norm = test_img[:, :, 0][:, :, None]
+        for i, (im, mask) in enumerate(zip(xval, dataset.test_list)):
+            test_img_norm = im[:, :, 0][:, :, None]
             test_img_input = np.expand_dims(test_img_norm, 0)
-            prediction = (model.predict(test_img_input)[0, :, :, 0] > params.PREDICTION_THRESHOLD).astype(np.uint8)
-            test_path = os.path.join(self.pred_path, test_name)
-            cv2.imwrite(test_path, prediction)
+            pred = (model.predict(test_img_input)[0, :, :, 0] > params.PREDICTION_THRESHOLD).astype(np.uint8)
+            plt.figure()
+            plt.subplot(131)
+            plt.imshow(im, cmap="gray")
+            plt.title('image')
+            plt.subplot(132)
+            plt.imshow(mask, cmap="gray")
+            plt.title('gt')
+            plt.subplot(133)
+            plt.imshow(pred, cmap="gray")
+            plt.title('pred')
+            val_pred_path = os.path.join(self.val_pred_path, str(i) + '.png')
+            plt.savefig(val_pred_path)
 
     def save_train_log(self, history, iou_score, count_ptg):
         log_fname = os.path.join(self.output_folder_path, time.strftime("%Y%m%d-%H%M%S") + '.txt')
