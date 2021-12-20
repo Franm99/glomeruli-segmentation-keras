@@ -137,7 +137,7 @@ class TestBench:
     def _prepare_model(self):
         model = get_model()
         weights_backup = self.weights_path + '/backup.hdf5'
-        checkpoint_cb = cb.ModelCheckpoint(filepath=weights_backup, monitor=params.MONITORED_METRIC,
+        checkpoint_cb = cb.ModelCheckpoint(filepath=weights_backup,  # TODO: change monitored metric to IoU
                                            verbose=1, save_best_only=True)
         # earlystopping_cb = cb.EarlyStopping(monitor='val_loss', patience=params.ES_PATIENCE)
         earlystopping_cb = cb.EarlyStopping(monitor=params.MONITORED_METRIC, patience=params.ES_PATIENCE)
@@ -167,7 +167,7 @@ class TestBench:
             pred = self._get_mask(im, org_size, model, th = params.PREDICTION_THRESHOLD)
             predictions.append(pred)
             im_path = os.path.join(self.test_pred_path, im_name)
-            cv2.imwrite(im_path, pred)
+            cv2.imwrite(im_path, pred*255)
         return predictions
 
     @staticmethod
