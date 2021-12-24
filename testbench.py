@@ -9,39 +9,55 @@ be read to check if there are changes that force to generate new data.
 TODO: Refactoring and documentation
 """
 
-from unet_model import unet_model
-from typing import List, Optional
-import os
-import tensorflow.keras.callbacks as cb
-from tensorflow.keras.utils import normalize
+import cv2.cv2 as cv2
+import keras
 import matplotlib.pyplot as plt
 import numpy as np
-import random
-from dataset import Dataset
-from utils import get_data_from_xml, print_info, check_gpu_availability, MaskType
-import cv2.cv2 as cv2
-from tqdm import tqdm
+import os
 import parameters as params
+import random
+import tensorflow.keras.callbacks as cb
 import time
+from dataset import Dataset
+from tensorflow.keras.utils import normalize
+from tqdm import tqdm
+from typing import List, Optional
+from unet_model import unet_model
+from utils import get_data_from_xml, print_info, check_gpu_availability, MaskType
 
 check_gpu_availability()
 
 
-def get_model():
-    """ return: U-Net model (TF2 version)"""
+def get_model() -> keras.Model:
+    """ return: U-Net Keras model (TF2 version)"""
     return unet_model(params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE, 1)
 
 
 class TestBench:
-    def __init__(self, stainings: List[str], limit_samples: Optional[float],
-                 mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool):
-        """ Initialize class variables and main paths. """
+    """ Test bench is designed to study how a specific segmentation network works depending on
+     a set of parameters, involving the data preprocessing, model definition, training, validation and testing."""
+
+    def __init__(self, stainings: List[str], mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool,
+                 limit_samples: Optional[float]):
+        """
+        Initialize class variables and main paths.
+        Every parameter taking part in the test bench configuration must be initialized here.
+        :param stainings: List of stainings (HE, PAS, PM or ALL) with which to launch the test bench.
+        :param mask_type: Type of mask to use. By now, just HANDCRAFTED and CIRCULAR can be used. The path to the
+        directory containing the groundtruth masks varies depending on this parameter.
+        :param mask_size: When using MaskType.CIRCULAR, this parameter sets the circles radius. If None, Radii are
+        computed depending on the glomeruli class (ESCLEROSADO, SANO, HIPERCELULAR MES, etc).
+        :param mask_simplex: When using MaskType.CIRCULAR, this parameter specifies if the Simplex Algorithm will be
+        used to avoid circular masks overlap.
+        :param limit_samples: Percentage of the whole data in disk to use. JUST FOR DEBUG!
+        """
         self._stainings = stainings
         self._limit_samples = limit_samples
         self._mask_size = mask_size
         self._mask_simplex = mask_simplex
-        self._xml_path = params.DATASET_PATH + '/xml'
+
         self._ims_path = params.DATASET_PATH + '/ims'
+        self._xml_path = params.DATASET_PATH + '/xml'
         if mask_type == MaskType.HANDCRAFTED:
             self._masks_path = params.DATASET_PATH + '/gt/masks'
         else:
@@ -55,17 +71,24 @@ class TestBench:
                 self._masks_path = params.DATASET_PATH + '/gt/bboxes'
 
     def run(self):
+        """ Method to execute the test bench. Sequentially, the following steps will be executed:
+        1. Initialize path where output files will be saved.
+        2. Data pre-processing using Dataset class.
+        3. Model configuration.
+        4. Training
+        5. Validation
+        6. Testing
+        This sequence will be executed for each set of configuration parameters used as input for the test bench class.
+        """
         for staining in self._stainings:
             print_info("Testbench launched for {} staining".format(staining))
             self._prepare_output()
 
-            # 1. Prepare Dataset
             print_info("########## PREPARE DATASET ##########")
             dataset = Dataset(staining=staining, mask_type=params.MASK_TYPE,
                               mask_size=self._mask_size, mask_simplex=self._mask_simplex)
             xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
 
-            # 2. Prepare model
             print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
             model, callbacks = self._prepare_model()
 
@@ -101,6 +124,10 @@ class TestBench:
             del model
 
     def _prepare_output(self):
+        """
+        Initialize directory where output files will be saved for an specific test bench execution.
+        :return: None
+        """
         self.log_name = time.strftime("%Y-%m-%d_%H-%M-%S")
         self.output_folder_path = os.path.join(params.OUTPUT_BASENAME, self.log_name)
         os.mkdir(self.output_folder_path)

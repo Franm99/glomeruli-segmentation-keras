@@ -1,26 +1,26 @@
-import matplotlib.pyplot as plt
-from typing import List, Tuple, Optional, Dict
-import numpy as np
 import math
+import matplotlib.pyplot as plt
+import numpy as np
 import time
 from bs4 import BeautifulSoup
-from enum import Enum, auto
-from scipy.spatial import distance
-from scipy.optimize import linprog
 from collections import OrderedDict
+from enum import Enum, auto
 from itertools import combinations
+from scipy.optimize import linprog
+from scipy.spatial import distance
+from typing import List, Tuple, Optional, Dict
 
 
 # ---- CLASSES ----
 
 class MaskType(Enum):
-    """Type of masks to generate."""
+    """ Type of masks that can be used """
     CIRCULAR = auto()
     BBOX = auto()
-    HANDCRAFTED = auto()
+    HANDCRAFTED = auto()  # These masks are always obtained from disk
 
 
-class Size(Enum):  # Pixels for radius
+class Size(Enum):  # Number of pixels for synthetic masks radii.
     HUGE = 225
     BIG = 175
     MEDIUM = 150
@@ -49,8 +49,12 @@ GlomeruliClass = {  # TODO: re-classify sizes
 # ---- FUNCTIONS ----
 def get_data_from_xml(xml_file: str, mask_size: Optional[int],
                       apply_simplex: bool) -> Dict[int, List[Tuple[int, int]]]:
-    """ Read data from glomeruli xml file.
-    Data to extract: Glomeruli class and coordinates of each occurrence.
+    """
+    Read glomeruli classes and coordinates from glomeruli xml file.
+    :param xml_file: full path to an xml file containing glomeruli information.
+    :param mask_size: Desired mask size for synthetic masks. If None, the glomeruli class is used to define radii.
+    :param apply_simplex: If True, Simplex algorithm is applied to avoid mask overlap.
+    :return: Dictionary with keys referring to glomeruli dimensions, with lists of coordinates as values.
     """
     with open(xml_file, 'r') as f:
         data = f.read()
@@ -77,8 +81,12 @@ def get_data_from_xml(xml_file: str, mask_size: Optional[int],
 
 
 def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int, int]]]:
-    """ Apply simplex algorithm to avoid masks overlap.
-     Simplex algorithm: https://docs.scipy.org/doc/scipy/reference/optimize.linprog-simplex.html"""
+    """
+    Apply Simplex algorithm to avoid masks overlap.
+    Simplex algorithm: https://docs.scipy.org/doc/scipy/reference/optimize.linprog-simplex.html
+    :param data: dictionary containing glomeruli information.
+    :return: dictionary containing glomeruli information, with modified radii just when overlap occurs.
+    """
 
     # Compute D2: size limits for each point (i.e., data key)
     D2 = np.asarray([size for size in data.keys() for _ in range(len(data[size]))])
@@ -146,8 +154,11 @@ def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int,
 
 
 def timer(f):
-    """ Timer decorator to wrap and measure a function time performance."""
-
+    """
+    Timer decorator to wrap and measure a function time performance.
+    :param f: Function to wrap.
+    :return: decorated function
+    """
     def time_dec(*args, **kw):
         ts = time.time()
         result = f(*args, **kw)
@@ -245,22 +256,26 @@ def show_masked_ims(imgs: List[np.ndarray], masks: List[np.ndarray],
 
 
 def print_info(msg):
+    """ Log INFO messages """
     info = "--> [I]:  "
     print(info, msg)
 
 
 def print_warn(msg):
+    """ Log WARNING messages """
     info = "--> [W]:  "
     print(info, msg)
 
 
 def print_error(msg):
+    """ Log ERROR messages """
     info = "--> [E]:  "
     print(info, msg)
 
 
 # DEBUG
 def check_gpu_availability():
+    """ Source: https://stackoverflow.com/questions/41117740/tensorflow-crashes-with-cublas-status-alloc-failed """
     import tensorflow as tf
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
@@ -274,57 +289,39 @@ def check_gpu_availability():
             # Memory growth must be set before GPUs have been initialized
             print(e)
 
-
-# Testing timer
+#
+# # Testing xml extractor
 # if __name__ == '__main__':
-#     @timer
-#     def test():
-#         for i in range(1000000):
-#             pass
+#     xml_path = "D:\\DataGlomeruli\\xml"
+#     mask_path = "D:\\DataGlomeruli\\gt\\circles"
+#     im_path = "D:\\DataGlomeruli\\ims"
+#     import os, glob, random
+#     import matplotlib.pyplot as plt
+#     import cv2.cv2 as cv2
 #
-#     test()
+#     i = random.randint(0, len(os.listdir(xml_path)) - 1)
+#     # i = 522
+#     # i = 10
+#     print("------", i)
+#     # xml_f = glob.glob(xml_path + '/*')[i]
+#     xml_f = xml_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.xml"
+#     # mask_f = glob.glob(mask_path + '/*')[i]
+#     mask_f = mask_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.png"
+#     # im_f = glob.glob(im_path + '/*')[i]
+#     im_f = im_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.png"
 #
-#     class Test():
-#         @timer
-#         def testf(self, arg):
-#             for i in range(10000000):
-#                 pass
+#     print(xml_f)
+#     mask = cv2.cvtColor(cv2.imread(mask_f, cv2.IMREAD_GRAYSCALE), cv2.COLOR_BGR2RGB)
+#     im = cv2.cvtColor(cv2.imread(im_f, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
 #
-#     t = Test()
-#     t.testf(2)
-
-# Testing xml extractor
-if __name__ == '__main__':
-    xml_path = "D:\\DataGlomeruli\\xml"
-    mask_path = "D:\\DataGlomeruli\\gt\\circles"
-    im_path = "D:\\DataGlomeruli\\ims"
-    import os, glob, random
-    import matplotlib.pyplot as plt
-    import cv2.cv2 as cv2
-
-    i = random.randint(0, len(os.listdir(xml_path)) - 1)
-    # i = 522
-    # i = 10
-    print("------", i)
-    # xml_f = glob.glob(xml_path + '/*')[i]
-    xml_f = xml_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.xml"
-    # mask_f = glob.glob(mask_path + '/*')[i]
-    mask_f = mask_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.png"
-    # im_f = glob.glob(im_path + '/*')[i]
-    im_f = im_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.png"
-
-    print(xml_f)
-    mask = cv2.cvtColor(cv2.imread(mask_f, cv2.IMREAD_GRAYSCALE), cv2.COLOR_BGR2RGB)
-    im = cv2.cvtColor(cv2.imread(im_f, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
-
-    plt.figure()
-    plt.subplot(121)
-    plt.imshow(im)
-    plt.subplot(122)
-    plt.imshow(mask, cmap="gray")
-
-    data = get_data_from_xml(xml_f, apply_simplex=True)
-    print(data)
-    plt.show()
+#     plt.figure()
+#     plt.subplot(121)
+#     plt.imshow(im)
+#     plt.subplot(122)
+#     plt.imshow(mask, cmap="gray")
+#
+#     data = get_data_from_xml(xml_f, apply_simplex=True)
+#     print(data)
+#     plt.show()
 
 
