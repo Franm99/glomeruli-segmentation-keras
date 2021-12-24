@@ -4,6 +4,7 @@ trash
 
 *.hdf5
 *.png
+!ims/*
 
 source_test.py
 unet_train.py
