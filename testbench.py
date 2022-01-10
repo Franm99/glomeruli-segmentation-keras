@@ -191,14 +191,15 @@ class TestBench:
         predictions = []
         org_size = int(params.UNET_INPUT_SIZE * params.RESIZE_RATIO)
         for im, im_name in tqdm(zip(ims, ims_names), total=len(ims), desc="Test predictions"):
-            pred = self._get_mask(im, org_size, model, th = params.PREDICTION_THRESHOLD)
+            pred = self._get_pred_mask(im, org_size, model, th=params.PREDICTION_THRESHOLD)
             predictions.append(pred)
             im_path = os.path.join(self.test_pred_path, im_name)
+            # OpenCV works with [0..255] range. pred is in [0..1] format. It might be changed before save.
             cv2.imwrite(im_path, pred*255)
         return predictions
 
     @staticmethod
-    def _get_mask(im, dim, model, th: float):
+    def _get_pred_mask(im, dim, model, th: float):
         """ """
         [h, w] = im.shape
         # Initializing list of masks
@@ -246,8 +247,18 @@ class TestBench:
         return counter / counter_total
 
     def count_segmented_glomeruli_adv(self, preds, test_list):
+        """
+        Glomeruli hit-miss counter using Region Labelling.
+        - Input: Image, ground-truth mask and prediction mask.
+        - To Do:
+            - Use Region labelling to both count the number of glomeruli contained in the grount-truth mask and get
+            their Mass centers.
+            - Check if the coordinates where a glomeruli might be found indeed contains a glomeruli.
+            - Study false positives (i.e., additional blobs contained in the prediction mask).
+            - Optionally show (or save) subfigures to visually check the hit-miss percentage in every test case.
+        """
+        # TODO: Complete.
         pass
-        # TODO: fill using
 
     def _save_results(self, history):
         loss = history.history['loss']
