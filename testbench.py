@@ -21,7 +21,7 @@ import time
 from dataset import Dataset
 from tensorflow.keras.utils import normalize
 from tqdm import tqdm
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from unet_model import unet_model
 from utils import get_data_from_xml, print_info, check_gpu_availability, MaskType
 
@@ -110,7 +110,7 @@ class TestBench:
             print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
                                                                                         iou_score))
             print_info("Saving validation predictions (patches) to disk.")
-            self._save_val_predictions(xval, yval, model, dataset)
+            self._save_val_predictions(xval, yval, model)
 
             # 4. TESTING STAGE
             print_info("########## TESTING STAGE ##########")
@@ -140,7 +140,7 @@ class TestBench:
         self.logs_path = os.path.join(self.output_folder_path, 'logs')
         os.mkdir(self.logs_path)
 
-    def _prepare_data(self, dataset: Dataset):
+    def _prepare_data(self, dataset: Dataset) -> Tuple:
         print_info("First split: Training+Validation & Testing split:")
         xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
 
@@ -282,11 +282,11 @@ class TestBench:
         iou_score = np.sum(intersection) / np.sum(union)
         return iou_score
 
-    def _save_val_predictions(self, xval, yval, model, dataset):
-        for i, (im, mask) in enumerate(zip(xval, dataset.test_list)):
-            test_img_norm = im[:, :, 0][:, :, None]
-            test_img_input = np.expand_dims(test_img_norm, 0)
-            pred = (model.predict(test_img_input)[0, :, :, 0] > params.PREDICTION_THRESHOLD).astype(np.uint8)
+    def _save_val_predictions(self, xval, yval, model):
+        for i, (im, mask) in enumerate(zip(xval, yval)):
+            val_img_norm = im[:, :, 0][:, :, None]
+            val_img_input = np.expand_dims(val_img_norm, 0)
+            pred = (model.predict(val_img_input)[0, :, :, 0] > params.PREDICTION_THRESHOLD).astype(np.uint8)
             plt.figure()
             plt.subplot(131)
             plt.imshow(im, cmap="gray")

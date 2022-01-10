@@ -17,7 +17,7 @@ from PIL import Image
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import normalize
 from tqdm import tqdm
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from utils import print_info, print_warn, print_error, timer, MaskType
 
 
@@ -128,7 +128,8 @@ class Dataset():
         return ims, masks
 
     @timer
-    def get_spatches(self, data: List[np.ndarray], data_masks: List[np.ndarray], rz_ratio: int):
+    def get_spatches(self, data: List[np.ndarray], data_masks: List[np.ndarray], rz_ratio: int) \
+            -> Tuple[List[str], Tuple[np.ndarray, List[np.ndarray]]]:
         """
         Method to generate sub-patches from original patches with compatible dimensions for the model input.
         :param data: List of images in Numpy ndarray format.
