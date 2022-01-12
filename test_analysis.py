@@ -31,11 +31,23 @@ class Viewer(tk.Frame):
         self.ims = self.load_ims()
         self.masks = self.load_gt()
 
-        self.samplename = tk.StringVar()
+        # Initialize interface variables
+        self.idx = 0
+        self.num_ims = len(self.names)
+        self.local_true_positives = tk.StringVar()
+        self.local_false_negatives = tk.StringVar()
+        self.local_false_positives = tk.StringVar()
+        self.local_hit_pctg = tk.StringVar()
+        self.global_true_positives = tk.StringVar()
+        self.global_false_negatives = tk.StringVar()
+        self.global_false_positives = tk.StringVar()
+        self.global_hit_pctg = tk.StringVar()
+
+        self.counter_localFP = 0
+        self.counter_globalFP = 0
 
         self.create_widgets()
         self.show_images()
-        pass
 
     def create_widgets(self):
         """
@@ -57,10 +69,11 @@ class Viewer(tk.Frame):
         # Buttons
         self.buttonPrev = tk.Button(self, text="<", command=self.prevImage)
         self.buttonPrev.grid(row=12, column=1, padx=10, pady=10)
+        self.buttonPrev["state"] = tk.DISABLED
         self.buttonNext = tk.Button(self, text=">", command=self.nextImage)
         self.buttonNext.grid(row=12, column=3, padx=10, pady=10)
 
-        # Variables panel
+        # Text panel
         ttk.Separator(self, orient=tk.VERTICAL).grid(column=5, row=0, rowspan=15, sticky='ns')
         tk.Label(self, text="Local values", anchor="w").grid(column=6, columnspan=2, row=1)
         tk.Label(self, text="True positives:", anchor="w").grid(column=6, columnspan=1, row=2)
@@ -74,24 +87,73 @@ class Viewer(tk.Frame):
         tk.Label(self, text="False positives:", anchor="w").grid(column=6, columnspan=1, row=10)
         tk.Label(self, text="Hit ratio:", anchor="w").grid(column=6, columnspan=1, row=11)
 
+        # Variable labels
+        self.lblLocalTP = tk.Label(self, textvariable=self.local_true_positives)
+        self.lblLocalTP.grid(column=7, row=2)
+        self.lblLocalFN = tk.Label(self, textvariable=self.local_false_negatives)
+        self.lblLocalFN.grid(column=7, row=3)
+        self.lblLocalFP = tk.Label(self, textvariable=self.local_false_positives)
+        self.lblLocalFP.grid(column=7, row=4)
+        self.lblLocalPctg = tk.Label(self, textvariable=self.local_hit_pctg)
+        self.lblLocalPctg.grid(column=7, row=5)
+        self.lblGlobalTP = tk.Label(self, textvariable=self.global_true_positives)
+        self.lblGlobalTP.grid(column=7, row=8)
+        self.lblGlobalFN = tk.Label(self, textvariable=self.global_false_negatives)
+        self.lblGlobalFN.grid(column=7, row=9)
+        self.lblGlobalFP = tk.Label(self, textvariable=self.global_false_positives)
+        self.lblGlobalFP.grid(column=7, row=10)
+        self.lblGlobalPctg = tk.Label(self, textvariable=self.global_hit_pctg)
+        self.lblGlobalPctg.grid(column=7, row=11)
+
     def show_images(self):
         """
         Command to display the three images in a row.
         """
         self.canvas_im.configure(width=self.canvas_w, height=self.canvas_h)
-        self.canvas_im.create_image(0, 0, image=self.ims[0], anchor=tk.NW)
+        self.canvas_im.create_image(0, 0, image=self.ims[self.idx], anchor=tk.NW)
+        self.canvas_im.bind('<Button-1>', self.add_false_positive)
+        self.canvas_im.bind('<Button-3>', self.remove_false_positive)
 
         self.canvas_gt.configure(width=self.canvas_w, height=self.canvas_h)
-        self.canvas_gt.create_image(0, 0, image=self.masks[0], anchor=tk.NW)
+        self.canvas_gt.create_image(0, 0, image=self.masks[self.idx], anchor=tk.NW)
 
         self.canvas_pred.configure(width=self.canvas_w, height=self.canvas_h)
-        self.canvas_pred.create_image(0, 0, image=self.preds[0], anchor=tk.NW)
+        self.canvas_pred.create_image(0, 0, image=self.preds[self.idx], anchor=tk.NW)
 
     def prevImage(self):
-        pass
+        self.idx -= 1
+        if self.idx == 0:
+            self.buttonPrev["state"] = tk.DISABLED
+        else:
+            self.buttonPrev["state"] = tk.NORMAL
+
+        if self.buttonNext["state"] == tk.DISABLED:
+            self.buttonNext["state"] = tk.NORMAL
 
     def nextImage(self):
-        pass
+        self.idx += 1
+        if self.idx >= self.num_ims:
+            self.buttonNext["state"] = tk.DISABLED
+        else:
+            self.buttonNext["state"] = tk.NORMAL
+
+        if self.buttonPrev["state"] == tk.DISABLED:
+            self.buttonPrev["state"] = tk.NORMAL
+
+    @staticmethod
+    def motion(event):
+        x, y = event.x, event.y
+        print("{}, {}".format(x, y))
+
+    def add_false_positive(self, event):
+        self.counter_localFP += 1
+        self.local_false_positives.set(str(self.counter_localFP))
+        self.counter_globalFP += 1
+        self.global_false_positives.set(str(self.counter_globalFP))
+
+    def remove_false_positive(self, event):
+        self.local_false_positives -= 1
+        self.global_false_positives -= 1
 
     # def run(self):
     #     for name, im, gt, pred in zip(self.names, self.ims, self.masks, self.preds):
