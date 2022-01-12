@@ -37,7 +37,7 @@ class Dataset():
             if mask_type == MaskType.CIRCULAR:
                 self._masks_path = params.DATASET_PATH + '/gt/circles'
                 if mask_size:
-                    self._masks_path = self._masks_path + str(self._mask_size)
+                    self._masks_path = self._masks_path + str(mask_size)
                 if mask_simplex:
                     self._masks_path = self._masks_path + "_simplex"
             else:
@@ -273,8 +273,7 @@ class Dataset():
         masks_t = np.expand_dims((np.array(masks)), 3) / 255
         return ims_t, masks_t
 
-    @staticmethod
-    def get_data_list(set: str) -> List[str]:
+    def get_data_list(self, set: str) -> List[str]:
         """
         Method to obtain an specific data list: 'test', 'train', 'val'
         :param set: name of the desired set in string format.
