@@ -249,39 +249,6 @@ class WorkFlow:
                     counter += 1 if pred[cy, cx] == 1 else 0
         return counter / counter_total
 
-    # def count_segmented_glomeruli_adv(self, test_images: List[np.ndarray], test_gt: List[np.ndarray],
-    #                                   test_predictions: List[np.ndarray], test_names: List[str]) -> None:
-    #     """
-    #     Glomeruli hit-miss counter using Region Labelling.
-    #     - Input: Image, ground-truth mask and prediction mask.
-    #     - To Do:
-    #         - Use Region labelling to both count the number of glomeruli contained in the grount-truth mask and get
-    #         their Mass centers.
-    #         - Check if the coordinates where a glomeruli might be found indeed contains a glomeruli.
-    #         - Study false positives (i.e., additional blobs contained in the prediction mask).
-    #         - Optionally show (or save) subfigures to visually check the hit-miss percentage in every test case.
-    #     """
-    #     total_counter = 0
-    #     num_ims = len(test_images)
-    #     for im, gt, pred, name in zip(test_images, test_gt, test_predictions, test_names):
-    #         # 1. Count blobs and find centroids in ground-truth mask.
-    #         gt_th = gt.astype(bool)
-    #         gt_labels = label(gt_th)
-    #         gt_regions = regionprops(gt_labels)
-    #
-    #         # 2. Count blobs and find centroids in prediction mask.
-    #         pred_th = gt.astype(bool)
-    #         pred_labels = label(pred_th)
-    #         pred_regions = regionprops(pred_labels)
-    #
-    #
-    #
-    #         # 2. Check if these centroids in the prediction mask correspond to glomeruli.
-    #         counter = 0
-    #         for props in regions:
-    #             cy, cx, _ = props.centroid
-    #             counter += 1 if pred[cy, cx] == 1 else 0
-
     def _save_results(self, history):
         loss = history.history['loss']
         val_loss = history.history['val_loss']
@@ -295,17 +262,17 @@ class WorkFlow:
         plt.legend()
         plt.savefig(os.path.join(self.output_folder_path, "loss.png"))
 
-        meanIoU = history.history['val_mean_io_u']
-        plt.figure()
-        plt.plot(epochs, meanIoU, 'y', label="Training_acc")
-        plt.title("[{}] Mean Intersection over Union".format(self.log_name))
-        plt.xlabel("Epochs")
-        plt.ylabel("MeanIoU")
-        plt.legend()
-        plt.savefig(os.path.join(self.output_folder_path, "mean_iou.png"))
+        # meanIoU = history.history['val_mean_io_u']
+        # plt.figure()
+        # plt.plot(epochs, meanIoU, 'y', label="Training_acc")
+        # plt.title("[{}] Mean Intersection over Union".format(self.log_name))
+        # plt.xlabel("Epochs")
+        # plt.ylabel("MeanIoU")
+        # plt.legend()
+        # plt.savefig(os.path.join(self.output_folder_path, "mean_iou.png"))
         print_info("You can check the training and validation results during epochs in:")
         print_info("- {}".format(os.path.join(self.output_folder_path, "loss.png")))
-        print_info("- {}".format(os.path.join(self.output_folder_path, "acc.png")))
+        # print_info("- {}".format(os.path.join(self.output_folder_path, "acc.png")))
 
     def compute_IoU(self, xtest, ytest, model, th: float = params.PREDICTION_THRESHOLD):
         ypred = model.predict(xtest)
