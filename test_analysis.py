@@ -2,12 +2,10 @@
 import glob
 import cv2.cv2 as cv2
 from glob import glob
-import matplotlib.pyplot as plt
 import numpy as np
 from skimage.measure import label, regionprops
 import os
 from PIL import Image as Img
-from PIL.Image import Image
 from PIL.ImageTk import PhotoImage
 from PIL import ImageTk
 import tkinter as tk
@@ -48,8 +46,8 @@ class Viewer(tk.Frame):
         self.global_false_positives = tk.StringVar()
         self.global_hit_pctg = tk.StringVar()
 
-        self.counter_localFP = 0
-        self.counter_globalFP = 0
+        self.gt_glomeruli_counter = 0
+        self.pred_glomeruli_counter = 0
 
         self.lTP_list = []
         self.lFN_list = []
@@ -83,11 +81,16 @@ class Viewer(tk.Frame):
         self.canvas_pred.grid(row=1, rowspan=11, column=4, padx=10, pady=10)
 
         # Buttons
-        self.buttonPrev = tk.Button(self, text="<", command=self.prevImage)
+        self.buttonPrev = tk.Button(self, text=u"\u2190", command=self.cb_prevImage, font="Arial 12",
+                                    height=3, width=10, background="#595959", foreground="#F2F2F2")
         self.buttonPrev.grid(row=12, column=1, padx=10, pady=10)
         self.buttonPrev["state"] = tk.DISABLED
-        self.buttonNext = tk.Button(self, text=">", command=self.nextImage)
+        self.buttonNext = tk.Button(self, text=u"\u2192", command=self.cb_nextImage, font="Arial 12",
+                                    height=3, width=10, background="#595959", foreground="#F2F2F2")
         self.buttonNext.grid(row=12, column=3, padx=10, pady=10)
+        self.buttonSave = tk.Button(self, text="Save", command=self.cb_save_results, font="Arial 12",
+                                    height=3, width=10, background="#595959", foreground="#F2F2F2")
+        self.buttonSave.grid(row=12, column=4, sticky="e", padx=10, pady=10)
 
         # Text panel
         ttk.Separator(self, orient=tk.VERTICAL).grid(column=5, row=0, rowspan=15, sticky='ns')
@@ -133,10 +136,102 @@ class Viewer(tk.Frame):
 
         self.canvas_pred.configure(width=self.canvas_w, height=self.canvas_h)
         self.canvas_pred.create_image(0, 0, image=self.preds[self.idx], anchor=tk.NW)
-        self.canvas_pred.bind('<Button-1>', self.add_false_positive)
-        self.canvas_pred.bind('<Button-3>', self.remove_false_positive)
+        self.canvas_pred.bind('<Button-1>', self.cb_add_false_positive)
+        self.canvas_pred.bind('<Button-3>', self.cb_remove_false_positive)
 
-    def prevImage(self):
+    def update_interface(self):
+        """
+        Update both canvas and local values
+        """
+        self.show_images()
+
+        # Update text variables
+        self.local_true_positives.set(str(self.lTP_list[self.idx]))
+        self.local_false_negatives.set(str(self.lFN_list[self.idx]))
+        self.local_false_positives.set(str(self.lFP_list[self.idx]))
+        self.local_hit_pctg.set(str(self.lPctg_list[self.idx]))
+
+    def update_globals(self):
+        """
+        Update global values
+        """
+        self.global_true_positives.set(str(self.gTP))
+        self.global_false_negatives.set(str(self.gFN))
+        self.global_false_positives.set(str(self.gFP))
+        self.global_hit_pctg.set(str(self.gPctg))
+
+    def compute_accuracy(self):
+        """
+        Compute the accuracy as the ratio of true positive cases (i.e., glomeruli correctly predicted) and the whole set
+        of glomeruli.
+        """
+        for i, (mask, pred) in enumerate(zip(self.masks_np, self.preds_np)):
+            gt_centroids = find_blobs_centroids(mask)
+            pred_centroids = find_blobs_centroids(pred)
+            self.gt_glomeruli_counter += len(gt_centroids)
+            self.pred_glomeruli_counter += len(pred_centroids)
+            self.lTP_list.append(self.from_mask_to_pred(gt_centroids, pred))
+            self.lFN_list.append(len(gt_centroids) - self.lTP_list[i])
+            self.lPctg_list.append(self.lTP_list[i] / self.num_ims)
+            self.lFP_list.append(self.from_pred_to_mask(pred_centroids, mask))
+
+    def from_mask_to_pred(self, gt_centroids: List[Tuple[float, float]], pred: np.ndarray) -> int:
+        """
+        Check if glomeruli found in the ground-truth mask can be found in the prediction mask.
+        Used to detect TRUE POSITIVES (and consequently, FALSE NEGATIVES).
+        """
+        true_positives = 0
+        for (cy, cx) in gt_centroids:
+            true_positives += 1 if pred[int(cy), int(cx)] == 1 else 0
+        return true_positives
+
+    def from_pred_to_mask(self, pred_centroids: List[Tuple[float, float]], mask: np.ndarray) -> int:
+        """
+        Check if glomeruli found in the prediction mask can be found in the ground-truth mask.
+        Used to detect FALSE POSITIVES
+        """
+        false_positives = 0
+        for (cy, cx) in pred_centroids:
+            false_positives += 1 if mask[int(cy), int(cx)] == 0 else 0
+        return false_positives
+
+    def cb_add_false_positive(self, event):
+        """
+        Callback function to add new False Positive case in current sample
+        """
+        self.lFP_list[self.idx] += 1
+        self.gFP += 1
+        self.local_false_positives.set(str(self.lFP_list[self.idx]))
+        self.global_false_positives.set(str(self.gFP))
+
+    def cb_remove_false_positive(self, event):
+        """
+        Callback function to remove False Positive case in current sample
+        """
+        self.lFP_list[self.idx] -= 1
+        self.gFP -= 1
+        self.local_false_positives.set(str(self.lFP_list[self.idx]))
+        self.global_false_positives.set(str(self.gFP))
+
+    def cb_save_results(self):
+        """
+        Method to save (global) results in a txt file for later study.
+        NOTE: output file will be saved in the output directory.
+        """
+        filename = os.path.join('output', self._output_folder, "test_analysis.txt")
+        with open(file=filename, mode="w") as f:
+            f.write("GROUND-TRUTH GLOMERULI COUNT: {}\n".format(str(self.gt_glomeruli_counter)))
+            f.write("PREDICTION GLOMERULI COUNT: {}\n".format(str(self.pred_glomeruli_counter)))
+            f.write("TRUE POSITIVES: {}\n".format(self.global_true_positives.get()))
+            f.write("FALSE NEGATIVES: {}\n".format(self.global_false_negatives.get()))
+            f.write("FALSE POSITIVES: {}\n".format(self.global_false_positives.get()))
+            f.write("HIT PERCENTAGE: {}\n".format(self.global_hit_pctg.get()))
+        print("Results saved to file: {}".format(filename))
+
+    def cb_prevImage(self):
+        """
+        Display previous image in list, and its corresponding values
+        """
         self.idx -= 1
         self.update_interface()
         if self.idx == 0:
@@ -147,7 +242,10 @@ class Viewer(tk.Frame):
         if self.buttonNext["state"] == tk.DISABLED:
             self.buttonNext["state"] = tk.NORMAL
 
-    def nextImage(self):
+    def cb_nextImage(self):
+        """
+        Display next image in list, and its corresponding values
+        """
         self.idx += 1
         self.update_interface()
         if self.idx == self.num_ims - 1:
@@ -158,69 +256,11 @@ class Viewer(tk.Frame):
         if self.buttonPrev["state"] == tk.DISABLED:
             self.buttonPrev["state"] = tk.NORMAL
 
-    def update_interface(self):
-        self.show_images()
-
-        # Update text variables
-        self.local_true_positives.set(str(self.lTP_list[self.idx]))
-        self.local_false_negatives.set(str(self.lFN_list[self.idx]))
-        self.local_false_positives.set(str(self.lFP_list[self.idx]))
-        self.local_hit_pctg.set(str(self.lPctg_list[self.idx]))
-
-    @staticmethod
-    def motion(event):
-        x, y = event.x, event.y
-        print("{}, {}".format(x, y))
-
-    def add_false_positive(self, event):
-        self.lFP_list[self.idx] += 1
-        self.gFP += 1
-        self.local_false_positives.set(str(self.lFP_list[self.idx]))
-        self.global_false_positives.set(str(self.gFP))
-
-    def remove_false_positive(self, event):
-        self.lFP_list[self.idx] -= 1
-        self.gFP -= 1
-        self.local_false_positives.set(str(self.lFP_list[self.idx]))
-        self.global_false_positives.set(str(self.gFP))
-
-    # def run(self):
-    #     for name, im, gt, pred in zip(self.names, self.ims, self.masks, self.preds):
-    #         gt_centroids = find_blobs_centroids(gt)
-    #
-    #         # 1. Compute True positives (glomeruli correctly predicted).
-    #         true_positives = 0
-    #         for (cy, cx) in gt_centroids:
-    #             true_positives += 1 if pred[cy, cx] == 1 else 0
-
-    def from_mask_to_pred(self, gt_centroids: List[Tuple[float, float]], pred: np.ndarray) -> int:
-        true_positives = 0
-        for (cy, cx) in gt_centroids:
-            true_positives += 1 if pred[int(cy), int(cx)] == 1 else 0
-        return true_positives
-
-    def from_pred_to_mask(self, pred_centroids: List[Tuple[float, float]], mask: np.ndarray) -> int:
-        false_positives = 0
-        for (cy, cx) in pred_centroids:
-            false_positives += 1 if mask[int(cy), int(cx)] == 0 else 0
-        return false_positives
-
-    def compute_accuracy(self):
-        for i, (mask, pred) in enumerate(zip(self.masks_np, self.preds_np)):
-            gt_centroids = find_blobs_centroids(mask)
-            pred_centroids = find_blobs_centroids(pred)
-            self.lTP_list.append(self.from_mask_to_pred(gt_centroids, pred))
-            self.lFN_list.append(len(gt_centroids) - self.lTP_list[i])
-            self.lPctg_list.append(self.lTP_list[i] / self.num_ims)
-            self.lFP_list.append(self.from_pred_to_mask(pred_centroids, mask))
-
-    def update_globals(self):
-        self.global_true_positives.set(str(self.gTP))
-        self.global_false_negatives.set(str(self.gFN))
-        self.global_false_positives.set(str(self.gFP))
-        self.global_hit_pctg.set(str(self.gPctg))
-
     def load_test_predictions(self) -> Tuple[List[str], List[np.ndarray]]:
+        """
+        Load test prediction masks from the specified folder.
+        :return: (filenames list, numpy array images list)
+        """
         dir_path = os.path.join('output', self._output_folder, 'test_pred')
         test_pred_list = glob(dir_path + '/*')
         pred_ims_np = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in test_pred_list]
@@ -228,12 +268,20 @@ class Viewer(tk.Frame):
         return test_pred_names, pred_ims_np
 
     def load_ims(self) -> List[np.ndarray]:
+        """
+        Load images from where test prediction images have been obtained.
+        :return: numpy array images list
+        """
         dir_path = os.path.join(DATASET_PATH, 'ims')
         filenames = [os.path.join(dir_path, i) for i in self.names]
         ims_list = [cv2.cvtColor(cv2.imread(i, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB) for i in filenames]
         return ims_list
 
     def load_gt(self) -> List[np.ndarray]:
+        """
+        Load ground-truth masks attached to the images from where test prediction masks have been obtained.
+        :return: numpy array images list
+        """
         dir_path = os.path.join(DATASET_PATH, 'gt', self._masks_folder)
         filenames = [os.path.join(dir_path, i) for i in self.names]
         gt_list = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in filenames]
@@ -249,12 +297,25 @@ class Viewer(tk.Frame):
         return [ImageTk.PhotoImage(im) for im in ims]
 
 
+# UTILITY FUNCTIONS
+
 def browse_path():
+    """
+    Opens a file browser to select the path from where test prediction images are taken.
+    Default initial directory: output/ folder.
+    NOTE: To select a certain output folder, you may first enter to that folder!
+    """
     full_path = filedialog.askdirectory(initialdir='output')
     return os.path.basename(full_path)
 
 
 def find_blobs_centroids(img: np.ndarray) -> List[Tuple[float, float]]:
+    """
+    This function implements region labelling and region properties extraction to find, label and compute centroids of
+    each blob in binary images.
+    SOURCE:
+    NOTE: In this context, blob = glomerulus.
+    """
     img_th = img.astype(bool)
     img_labels = label(img_th)
     img_regions = regionprops(img_labels)
@@ -262,32 +323,6 @@ def find_blobs_centroids(img: np.ndarray) -> List[Tuple[float, float]]:
     for props in img_regions:
         centroids.append((props.centroid[0], props.centroid[1]))  # (y, x)
     return centroids
-
-
-# # TEST FUNCTIONS
-# # --------------
-#
-# def test_loaders():
-#     # output_folder = '2022-01-11_08-54-07' # TODO: open selector window
-#     output_folder = browse_path()
-#     test_pred_paths, preds = load_test_predictions(output_folder)
-#     test_pred_names = [os.path.basename(i) for i in test_pred_paths]
-#     imgs = load_ims(test_pred_names)
-#     gts = load_gt(test_pred_names, 'circles100')
-#
-#
-# def test_centroids():
-#     im_path = os.path.join(DATASET_PATH, 'gt', 'masks') + '/04B0006786 A 1 HE_x12000y4800s3200.png'
-#     im = cv2.imread(im_path, cv2.IMREAD_GRAYSCALE)
-#     plt.imshow(im)
-#     plt.show()
-#     centroids = find_blobs_centroids(im)
-#     print(centroids)
-#
-#
-# def test_TestBench():
-#     output_folder = browse_path()
-#     testBench = TestBench(output_folder)
 
 
 if __name__ == '__main__':
