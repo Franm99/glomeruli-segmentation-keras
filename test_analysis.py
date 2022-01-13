@@ -26,10 +26,15 @@ class Viewer(tk.Frame):
         self._output_folder = output_folder
         self._masks_folder = os.path.join(DATASET_PATH, 'gt', masks_folder)
 
-        # Load images, ground-truth masks and prediction masks
-        self.names, self.preds = self.load_test_predictions()
-        self.ims = self.load_ims()
-        self.masks = self.load_gt()
+        # Load images, ground-truth masks and prediction masks (in numpy array format)
+        self.names, self.preds_np = self.load_test_predictions()
+        self.ims_np = self.load_ims()
+        self.masks_np = self.load_gt()
+
+        # Convert to PhotoImage format to display on tkinter canvas
+        self.preds = self.toImageTk(self.preds_np)
+        self.ims = self.toImageTk(self.ims_np)
+        self.masks = self.toImageTk(self.masks_np)
 
         # Initialize interface variables
         self.idx = 0
@@ -46,17 +51,28 @@ class Viewer(tk.Frame):
         self.counter_localFP = 0
         self.counter_globalFP = 0
 
+        self.lTP_list = []
+        self.lFN_list = []
+        self.lFP_list = []
+        self.lPctg_list = []
+        self.compute_accuracy()
+        self.gTP = sum(self.lTP_list)
+        self.gFN = sum(self.lFN_list)
+        self.gFP = sum(self.lFP_list)
+        self.gPctg = np.mean(self.lPctg_list)
+
         self.create_widgets()
-        self.show_images()
+        self.update_interface()
+        self.update_globals()
 
     def create_widgets(self):
         """
         Create, initialize and place labels, images, etc on frame
         """
         # Guide labels
-        tk.Label(self, text="Image").grid(row=0, column=0, padx=10, pady=10)
-        tk.Label(self, text="Ground-truth").grid(row=0, column=2, padx=10, pady=10)
-        tk.Label(self, text="Prediction").grid(row=0, column=4, padx=10, pady=10)
+        tk.Label(self, text="Image", font="Arial 14 bold").grid(row=0, column=0, padx=10, pady=10)
+        tk.Label(self, text="Ground-truth", font="Arial 14 bold").grid(row=0, column=2, padx=10, pady=10)
+        tk.Label(self, text="Prediction", font="Arial 14 bold").grid(row=0, column=4, padx=10, pady=10)
 
         # Canvas for images
         self.canvas_im = tk.Canvas(self, width=self.canvas_w, height=self.canvas_h)
@@ -75,35 +91,35 @@ class Viewer(tk.Frame):
 
         # Text panel
         ttk.Separator(self, orient=tk.VERTICAL).grid(column=5, row=0, rowspan=15, sticky='ns')
-        tk.Label(self, text="Local values", anchor="w").grid(column=6, columnspan=2, row=1)
-        tk.Label(self, text="True positives:", anchor="w").grid(column=6, columnspan=1, row=2)
-        tk.Label(self, text="False negatives:", anchor="w").grid(column=6, columnspan=1, row=3)
-        tk.Label(self, text="False positives:", anchor="w").grid(column=6, columnspan=1, row=4)
-        tk.Label(self, text="Hit ratio:", anchor="w").grid(column=6, columnspan=1, row=5)
+        tk.Label(self, text="Local values", anchor="w", font="Arial 14 bold").grid(column=6, columnspan=2, row=1, padx=10)
+        tk.Label(self, text="True positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=2, padx=10, sticky="w")
+        tk.Label(self, text="False negatives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=3, padx=10, sticky="w")
+        tk.Label(self, text="False positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=4, padx=10, sticky="w")
+        tk.Label(self, text="Hit ratio:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=5, padx=10, sticky="w")
         ttk.Separator(self, orient=tk.HORIZONTAL).grid(column=5, columnspan=3, row=6, sticky='we')
-        tk.Label(self, text="Global values").grid(column=6, columnspan=2, row=7)
-        tk.Label(self, text="True positives:", anchor="w").grid(column=6, columnspan=1, row=8)
-        tk.Label(self, text="False negatives:", anchor="w").grid(column=6, columnspan=1, row=9)
-        tk.Label(self, text="False positives:", anchor="w").grid(column=6, columnspan=1, row=10)
-        tk.Label(self, text="Hit ratio:", anchor="w").grid(column=6, columnspan=1, row=11)
+        tk.Label(self, text="Global values", font="Arial 14 bold").grid(column=6, columnspan=2, row=7, padx=10)
+        tk.Label(self, text="True positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=8, padx=10, sticky="w")
+        tk.Label(self, text="False negatives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=9, padx=10, sticky="w")
+        tk.Label(self, text="False positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=10, padx=10, sticky="w")
+        tk.Label(self, text="Hit ratio:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=11, padx=10, sticky="w")
 
         # Variable labels
         self.lblLocalTP = tk.Label(self, textvariable=self.local_true_positives)
-        self.lblLocalTP.grid(column=7, row=2)
+        self.lblLocalTP.grid(column=7, row=2, padx=10, sticky="w")
         self.lblLocalFN = tk.Label(self, textvariable=self.local_false_negatives)
-        self.lblLocalFN.grid(column=7, row=3)
+        self.lblLocalFN.grid(column=7, row=3, padx=10, sticky="w")
         self.lblLocalFP = tk.Label(self, textvariable=self.local_false_positives)
-        self.lblLocalFP.grid(column=7, row=4)
+        self.lblLocalFP.grid(column=7, row=4, padx=10, sticky="w")
         self.lblLocalPctg = tk.Label(self, textvariable=self.local_hit_pctg)
-        self.lblLocalPctg.grid(column=7, row=5)
+        self.lblLocalPctg.grid(column=7, row=5, padx=10, sticky="w")
         self.lblGlobalTP = tk.Label(self, textvariable=self.global_true_positives)
-        self.lblGlobalTP.grid(column=7, row=8)
+        self.lblGlobalTP.grid(column=7, row=8, padx=10, sticky="w")
         self.lblGlobalFN = tk.Label(self, textvariable=self.global_false_negatives)
-        self.lblGlobalFN.grid(column=7, row=9)
+        self.lblGlobalFN.grid(column=7, row=9, padx=10, sticky="w")
         self.lblGlobalFP = tk.Label(self, textvariable=self.global_false_positives)
-        self.lblGlobalFP.grid(column=7, row=10)
+        self.lblGlobalFP.grid(column=7, row=10, padx=10, sticky="w")
         self.lblGlobalPctg = tk.Label(self, textvariable=self.global_hit_pctg)
-        self.lblGlobalPctg.grid(column=7, row=11)
+        self.lblGlobalPctg.grid(column=7, row=11, padx=10, sticky="w")
 
     def show_images(self):
         """
@@ -111,17 +127,18 @@ class Viewer(tk.Frame):
         """
         self.canvas_im.configure(width=self.canvas_w, height=self.canvas_h)
         self.canvas_im.create_image(0, 0, image=self.ims[self.idx], anchor=tk.NW)
-        self.canvas_im.bind('<Button-1>', self.add_false_positive)
-        self.canvas_im.bind('<Button-3>', self.remove_false_positive)
 
         self.canvas_gt.configure(width=self.canvas_w, height=self.canvas_h)
         self.canvas_gt.create_image(0, 0, image=self.masks[self.idx], anchor=tk.NW)
 
         self.canvas_pred.configure(width=self.canvas_w, height=self.canvas_h)
         self.canvas_pred.create_image(0, 0, image=self.preds[self.idx], anchor=tk.NW)
+        self.canvas_pred.bind('<Button-1>', self.add_false_positive)
+        self.canvas_pred.bind('<Button-3>', self.remove_false_positive)
 
     def prevImage(self):
         self.idx -= 1
+        self.update_interface()
         if self.idx == 0:
             self.buttonPrev["state"] = tk.DISABLED
         else:
@@ -132,7 +149,8 @@ class Viewer(tk.Frame):
 
     def nextImage(self):
         self.idx += 1
-        if self.idx >= self.num_ims:
+        self.update_interface()
+        if self.idx == self.num_ims - 1:
             self.buttonNext["state"] = tk.DISABLED
         else:
             self.buttonNext["state"] = tk.NORMAL
@@ -140,20 +158,31 @@ class Viewer(tk.Frame):
         if self.buttonPrev["state"] == tk.DISABLED:
             self.buttonPrev["state"] = tk.NORMAL
 
+    def update_interface(self):
+        self.show_images()
+
+        # Update text variables
+        self.local_true_positives.set(str(self.lTP_list[self.idx]))
+        self.local_false_negatives.set(str(self.lFN_list[self.idx]))
+        self.local_false_positives.set(str(self.lFP_list[self.idx]))
+        self.local_hit_pctg.set(str(self.lPctg_list[self.idx]))
+
     @staticmethod
     def motion(event):
         x, y = event.x, event.y
         print("{}, {}".format(x, y))
 
     def add_false_positive(self, event):
-        self.counter_localFP += 1
-        self.local_false_positives.set(str(self.counter_localFP))
-        self.counter_globalFP += 1
-        self.global_false_positives.set(str(self.counter_globalFP))
+        self.lFP_list[self.idx] += 1
+        self.gFP += 1
+        self.local_false_positives.set(str(self.lFP_list[self.idx]))
+        self.global_false_positives.set(str(self.gFP))
 
     def remove_false_positive(self, event):
-        self.local_false_positives -= 1
-        self.global_false_positives -= 1
+        self.lFP_list[self.idx] -= 1
+        self.gFP -= 1
+        self.local_false_positives.set(str(self.lFP_list[self.idx]))
+        self.global_false_positives.set(str(self.gFP))
 
     # def run(self):
     #     for name, im, gt, pred in zip(self.names, self.ims, self.masks, self.preds):
@@ -164,25 +193,59 @@ class Viewer(tk.Frame):
     #         for (cy, cx) in gt_centroids:
     #             true_positives += 1 if pred[cy, cx] == 1 else 0
 
-    def load_test_predictions(self) -> Tuple[List[str], List[PhotoImage]]:
+    def from_mask_to_pred(self, gt_centroids: List[Tuple[float, float]], pred: np.ndarray) -> int:
+        true_positives = 0
+        for (cy, cx) in gt_centroids:
+            true_positives += 1 if pred[int(cy), int(cx)] == 1 else 0
+        return true_positives
+
+    def from_pred_to_mask(self, pred_centroids: List[Tuple[float, float]], mask: np.ndarray) -> int:
+        false_positives = 0
+        for (cy, cx) in pred_centroids:
+            false_positives += 1 if mask[int(cy), int(cx)] == 0 else 0
+        return false_positives
+
+    def compute_accuracy(self):
+        for i, (mask, pred) in enumerate(zip(self.masks_np, self.preds_np)):
+            gt_centroids = find_blobs_centroids(mask)
+            pred_centroids = find_blobs_centroids(pred)
+            self.lTP_list.append(self.from_mask_to_pred(gt_centroids, pred))
+            self.lFN_list.append(len(gt_centroids) - self.lTP_list[i])
+            self.lPctg_list.append(self.lTP_list[i] / self.num_ims)
+            self.lFP_list.append(self.from_pred_to_mask(pred_centroids, mask))
+
+    def update_globals(self):
+        self.global_true_positives.set(str(self.gTP))
+        self.global_false_negatives.set(str(self.gFN))
+        self.global_false_positives.set(str(self.gFP))
+        self.global_hit_pctg.set(str(self.gPctg))
+
+    def load_test_predictions(self) -> Tuple[List[str], List[np.ndarray]]:
         dir_path = os.path.join('output', self._output_folder, 'test_pred')
         test_pred_list = glob(dir_path + '/*')
-        pred_ims = [Img.open(pred_name) for pred_name in test_pred_list]
+        pred_ims_np = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in test_pred_list]
         test_pred_names = [os.path.basename(i) for i in test_pred_list]
-        return test_pred_names, self.toImageTk(pred_ims)
+        return test_pred_names, pred_ims_np
 
-    def load_ims(self) -> List[PhotoImage]:
+    def load_ims(self) -> List[np.ndarray]:
         dir_path = os.path.join(DATASET_PATH, 'ims')
-        ims_list = [Img.open(os.path.join(dir_path, name)) for name in self.names]
-        return self.toImageTk(ims_list)
+        filenames = [os.path.join(dir_path, i) for i in self.names]
+        ims_list = [cv2.cvtColor(cv2.imread(i, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB) for i in filenames]
+        return ims_list
 
-    def load_gt(self) -> List[PhotoImage]:
+    def load_gt(self) -> List[np.ndarray]:
         dir_path = os.path.join(DATASET_PATH, 'gt', self._masks_folder)
-        gt_list = [Img.open(os.path.join(dir_path, name)) for name in self.names]
-        return self.toImageTk(gt_list)
+        filenames = [os.path.join(dir_path, i) for i in self.names]
+        gt_list = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in filenames]
+        return gt_list
 
-    def toImageTk(self, ims: List[Image]) -> List[PhotoImage]:
-        ims = [im.resize((self.canvas_w, self.canvas_h)) for im in ims]
+    def toImageTk(self, ims: List[np.ndarray]) -> List[PhotoImage]:
+        """
+        :param ims: List of images in numpy array format
+        :return: List of images in PhotoImage format (for tkinter canvas)
+        """
+        ims_pil = [Img.fromarray(im) for im in ims]
+        ims = [im.resize((self.canvas_w, self.canvas_h)) for im in ims_pil]
         return [ImageTk.PhotoImage(im) for im in ims]
 
 
@@ -199,6 +262,7 @@ def find_blobs_centroids(img: np.ndarray) -> List[Tuple[float, float]]:
     for props in img_regions:
         centroids.append((props.centroid[0], props.centroid[1]))  # (y, x)
     return centroids
+
 
 # # TEST FUNCTIONS
 # # --------------
