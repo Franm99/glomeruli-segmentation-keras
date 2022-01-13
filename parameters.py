@@ -20,15 +20,16 @@ STAINING = 'HE'
 
 # Model parameters
 LEARNING_RATE = 0.001
-MONITORED_METRIC = "val_mean_io_u"
+# MONITORED_METRIC = "val_mean_io_u"
+MONITORED_METRIC = "val_loss"
 MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
-    # 'accuracy',
-    MeanIoU(num_classes=2)
+    'accuracy',
+    # MeanIoU(num_classes=2)
 ]
 
 # Mask Generator
-# MASK_TYPE = MaskType.HANDCRAFTED
-MASK_TYPE = MaskType.CIRCULAR
+MASK_TYPE = MaskType.HANDCRAFTED
+# MASK_TYPE = MaskType.CIRCULAR
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9
@@ -41,7 +42,7 @@ BATCH_SIZE = 16
 EPOCHS = 100
 
 # Model callbacks configuration
-ES_PATIENCE = 6
+ES_PATIENCE = 4
 REDUCELR_PATIENCE = 2
 """ TODO
 Think a better way to include callbacks (maybe using args or kwargs)
@@ -64,6 +65,6 @@ SAVE_TRAIN_LOGS = False
 ACTIVATE_REDUCELR = False
 LOAD_SPATCHES = False
 
-DEBUG_LIMIT = 0.2
+DEBUG_LIMIT = None
 MASK_SIZE = 100
 APPLY_SIMPLEX = False
