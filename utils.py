@@ -9,6 +9,9 @@ from itertools import combinations
 from scipy.optimize import linprog
 from scipy.spatial import distance
 from typing import List, Tuple, Optional, Dict
+from tkinter import filedialog
+import os
+from skimage.measure import regionprops, label
 
 
 # ---- CLASSES ----
@@ -151,6 +154,33 @@ def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int,
                 data[nlim] = []
             data[nlim].append(point)
     return data
+
+
+
+def browse_path():
+    """
+    Opens a file browser to select the path from where test prediction images are taken.
+    Default initial directory: output/ folder.
+    NOTE: To select a certain output folder, you may first enter to that folder!
+    """
+    full_path = filedialog.askdirectory(initialdir='output')
+    return os.path.basename(full_path)
+
+
+def find_blobs_centroids(img: np.ndarray) -> List[Tuple[float, float]]:
+    """
+    This function implements region labelling and region properties extraction to find, label and compute centroids of
+    each blob in binary images.
+    SOURCE:
+    NOTE: In this context, blob = glomerulus.
+    """
+    img_th = img.astype(bool)
+    img_labels = label(img_th)
+    img_regions = regionprops(img_labels)
+    centroids = []
+    for props in img_regions:
+        centroids.append((props.centroid[0], props.centroid[1]))  # (y, x)
+    return centroids
 
 
 def timer(f):
