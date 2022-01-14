@@ -11,6 +11,8 @@ TODO: Refactoring and documentation
 
 import cv2.cv2 as cv2
 import keras
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -25,6 +27,7 @@ from tqdm import tqdm
 from typing import List, Optional, Tuple
 from unet_model import unet_model
 from utils import get_data_from_xml, print_info, check_gpu_availability, MaskType
+
 
 check_gpu_availability()
 
