@@ -5,21 +5,12 @@ Redirect prints to a log file filtering just those with the "info", "warn" and "
 TODO
 Write parameters from the last training performed to a txt. For next training, this file will
 be read to check if there are changes that force to generate new data.
-
-TODO: Refactoring and documentation
 """
-
-# Source: https://stackoverflow.com/questions/41117740/tensorflow-crashes-with-cublas-status-alloc-failed
-import tensorflow as tf
-config = tf.compat.v1.ConfigProto(gpu_options=tf.compat.v1.GPUOptions(per_process_gpu_memory_fraction=0.8))
-config.gpu_options.allow_growth = True
-session = tf.compat.v1.Session(config=config)
-tf.compat.v1.keras.backend.set_session(session)
 
 import cv2.cv2 as cv2
 import keras
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg')  # Uncomment when working with SSH and background processes!
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -136,21 +127,31 @@ class WorkFlow:
         Initialize directory where output files will be saved for an specific test bench execution.
         :return: None
         """
+        # Output log folder
         self.log_name = time.strftime("%Y-%m-%d_%H-%M-%S")
         self.output_folder_path = os.path.join(params.OUTPUT_BASENAME, self.log_name)
         os.mkdir(self.output_folder_path)
+        # Weights saved for later usage
         self.weights_path = os.path.join(self.output_folder_path, 'weights')
         os.mkdir(self.weights_path)
+        # Validation and test predictions might be subsequently analyzed, so they are saved into disk.
         self.val_pred_path = os.path.join(self.output_folder_path, 'val_pred')
         os.mkdir(self.val_pred_path)
         self.test_pred_path = os.path.join(self.output_folder_path, 'test_pred')
         os.mkdir(self.test_pred_path)
+        # If a log system (Tensorboard) is used, its output can be helpful for later analysis
         self.logs_path = os.path.join(self.output_folder_path, 'logs')
         os.mkdir(self.logs_path)
+        # With reproducibility purposes, training, validation and test sets will be saved
+        self.patches_train_path = os.path.join(self.output_folder_path, 'patches_train')
+        os.mkdir(self.patches_train_path)
+        self.patches_val_path = os.path.join(self.output_folder_path, 'patches_val')
+        os.mkdir(self.patches_val_path)
 
     def _prepare_data(self, dataset: Dataset) -> Tuple:
         print_info("First split: Training+Validation & Testing split:")
         xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
+        self.list2txt(os.path.join(self.output_folder_path, 'test_list.txt'), [os.path.basename(i) for i in xtest_p])
 
         print_info("LOADING DATA FROM DISK FOR PROCEEDING TO TRAINING AND TEST:")
         print_info("Loading images from: {}".format(self._ims_path))
@@ -162,14 +163,21 @@ class WorkFlow:
         xtest_list, ytest_list = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
 
         print_info("DATA PREPROCESSING FOR TRAINING.")
-        patches_names, (patches_tensors, patches_labels_tensors) = dataset.get_spatches(ims, masks, rz_ratio=params.RESIZE_RATIO)
-        print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
+        patches_ims, patches_masks = dataset.get_spatches(ims, masks, rz_ratio=params.RESIZE_RATIO)
+
+        # print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
 
         print_info("Second split: Training & Validation split:")
-        xtrain, xval, ytrain, yval = dataset.split_train_val(patches_tensors, patches_labels_tensors)
+        xtrain, xval, ytrain, yval = dataset.split_train_val(patches_ims, patches_masks)
+
+        self._save_spatches(xtrain, ytrain, self.patches_train_path)
+        self._save_spatches(xval, yval, self.patches_val_path)
+
         # train & val sets are returned as ndarray tensors, ready to be used as input for the U-Net, while test set is a
         # list. It will be processed in the TEST stage.
-        return xtrain, xval, xtest_list, ytrain, yval, ytest_list
+        xtrain_tensor, ytrain_tensor = self._normalize(xtrain, ytrain)
+        xval_tensor, yval_tensor = self._normalize(xval, yval)
+        return xtrain_tensor, xval_tensor, xtest_list, ytrain_tensor, yval_tensor, ytest_list
 
     def _prepare_model(self):
         model = get_model()
@@ -341,6 +349,46 @@ class WorkFlow:
             # write testing results
             f.write('TESTING RESULTS\n')
             f.write('GLOMERULI_HIT_PERCENTAGE={}\n'.format(count_ptg))
+
+    @staticmethod
+    def _save_spatches(x: List[np.ndarray], y: List[np.ndarray], dir_path: str):
+        ims_path = os.path.join(dir_path, "ims")
+        os.mkdir(ims_path)
+        masks_path = os.path.join(dir_path, "masks")
+        os.mkdir(masks_path)
+
+        max_num = len(str(len(x))) + 1
+        names = []
+        print_info("Savinng images and masks: {}".format(dir_path))
+        for idx, (im, mask) in tqdm(enumerate(zip(x, y)), total=len(x), desc="Saving images"):
+            bname = str(idx).zfill(max_num) + ".png"
+            names.append(bname)
+            cv2.imwrite(os.path.join(ims_path, bname), im)
+            cv2.imwrite(os.path.join(masks_path, bname), mask)
+
+    @staticmethod
+    def _normalize(ims: List[np.ndarray], masks: List[np.ndarray]):
+        """
+        Method to convert pairs of images and masks to the expected format as input for the segmentator model.
+        :param ims: list of images in numpy ndarray format, range [0..255]
+        :param masks: list of masks in numpy ndarray format, range [0..255]
+        :return: tuple with normalized sets: (BATCH_SIZE, W, H, CH) and range [0..1]
+        """
+        ims_t = np.expand_dims(normalize(np.array(ims), axis=1), 3)
+        masks_t = np.expand_dims((np.array(masks)), 3) / 255
+        return ims_t, masks_t
+
+    @staticmethod
+    def list2txt(fname: str, data: List[str]) -> None:
+        """
+        Method to save a list of strings to a txt file.
+        :param fname: txt file full path
+        :param data: list containing the data to save in file
+        :return: None
+        """
+        with open(fname, 'w') as f:
+            for i in data:
+                f.write(i + "\n")
 
 
 def train():

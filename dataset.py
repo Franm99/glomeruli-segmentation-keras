@@ -42,15 +42,11 @@ class Dataset():
                     self._masks_path = self._masks_path + "_simplex"
             else:
                 self._masks_path = params.DATASET_PATH + '/gt/bboxes'
-        self._train_val_path = params.DATASET_PATH + '/train_val'
-        self._train_val_ims_path = self._train_val_path + '/patches'  # For saving train-val sub-patches
-        self._train_val_masks_path = self._train_val_path + '/patches_masks'  # For saving train-val sub-masks
 
+        # output directories
         # Files to keep track of the data used
         self._ims_list_path = params.DATASET_PATH + '/ims.txt'  # patches names
-        self._train_val_file = params.DATASET_PATH + '/train_val.txt'  # names of train-val images (both)
-        self._test_file = params.DATASET_PATH + '/test.txt'  # names of test images
-        self._subpatches_file = self._train_val_path + '/subpatches_list.txt'  # names of train-val sub-patches
+        # self._test_file = params.DATASET_PATH + '/test.txt'  # names of test images
 
         # Instance parameters initialization
         self._staining = staining
@@ -84,14 +80,14 @@ class Dataset():
                                                               shuffle=True, random_state=params.TRAINVAL_TEST_RAND_STATE)
         self.trainval_list = [os.path.basename(i) for i in xtrainval]
         self.test_list = [os.path.basename(i) for i in xtest]
-        self.list2txt(self._train_val_file, self.trainval_list)
-        self.list2txt(self._test_file, self.test_list)
+        # self.list2txt(self._train_val_file, self.trainval_list)
+        # self.list2txt(self._test_file, self.test_list)
         print_info("{} images for Train/Validation and {} for testing".format(len(xtrainval), len(xtest)))
         return xtrainval, xtest, ytrainval, ytest
 
     def split_train_val(self, ims, masks, test_size: float = 0.1):
         """
-        Implements train_test_split Jeras method to split data into train and validation sets.
+        Implements train_test_split Keras method to split data into train and validation sets.
         :param ims: set of sub-patches images
         :param masks: set of masks images (same order as ims)
         :param test_size: proportion for the validation set
@@ -128,21 +124,20 @@ class Dataset():
         return ims, masks
 
     @timer
-    def get_spatches(self, data: List[np.ndarray], data_masks: List[np.ndarray], rz_ratio: int) \
-            -> Tuple[List[str], Tuple[np.ndarray, List[np.ndarray]]]:
+    def get_spatches(self, ims: List[np.ndarray], masks: List[np.ndarray], rz_ratio: int) \
+            -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Method to generate sub-patches from original patches with compatible dimensions for the model input.
-        :param data: List of images in Numpy ndarray format.
-        :param data_masks: List of masks in Numpy ndarray format.
+        :param ims: List of images in Numpy ndarray format.
+        :param masks: List of masks in Numpy ndarray format.
         :param rz_ratio: Resize ratio, used to select the relative size of sub-patches on images.
-        :return: list containing the names associated to the generated sub-patches, tuple with the sub-patches and their
-        corresponding masks.
+        :return: tuple containing two lists: patches images and masks. Numpy array format, NOT NORMALIZED YET!.
         """
         patches = []
         patches_masks = []
         print_info("Generating sub-patches for training stage and saving to disk...")
         patch_size_or = params.UNET_INPUT_SIZE * rz_ratio
-        for im, mask in tqdm(zip(data, data_masks), total=len(data), desc = "Generating subpatches"):
+        for im, mask in tqdm(zip(ims, masks), total=len(ims), desc ="Generating subpatches"):
             [h, w] = im.shape
             for x in range(0, w, patch_size_or):
                 if x+patch_size_or >= w:
@@ -158,11 +153,12 @@ class Dataset():
                         patch_mask = np.asarray(Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
                         patches.append(patch)
                         patches_masks.append(patch_mask)
-        # Save train dataset to disk for later use
-        spatches_names = self._save_train_dataset(patches, patches_masks)
 
-        print_info("{} patches generated from {} images for training and validation.".format(len(patches), len(data)))
-        return spatches_names, self._normalize(patches, patches_masks)
+        # # Save train dataset to disk for later use
+        # spatches_names = self._save_train_dataset(patches, patches_masks, output_folder)
+
+        print_info("{} patches generated from {} images for training and validation.".format(len(patches), len(ims)))
+        return patches, patches_masks
 
     @timer
     def _load_masks(self, mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool) -> List[str]:
@@ -198,31 +194,31 @@ class Dataset():
         """
         return np.sum(patch) > 0
 
-    def _save_train_dataset(self, ims: List[np.ndarray], masks: List[np.ndarray]) -> List[str]:
-        """
-        Method to save in disk the set of sub-patches images and masks previously generated.
-        :param ims: list of sub-patches images in numpy ndarray format.
-        :param masks: list of sub-patches masks in numpy ndarray format.
-        :return: list of sub-patches names
-        """
-        # Check if target directories exist
-        if not os.path.isdir(self._train_val_ims_path):
-            os.mkdir(self._train_val_ims_path)
-            os.mkdir(self._train_val_masks_path)
-
-        # Clear data if existing
-        self.clear_dir(self._train_val_ims_path)
-        self.clear_dir(self._train_val_masks_path)
-
-        num_digits = len(str(len(ims))) + 1
-        spatches_names = []
-        for idx, (im, mask) in enumerate(zip(ims, masks)):
-            bname = str(idx).zfill(num_digits) + ".png"
-            spatches_names.append(bname)
-            cv2.imwrite(os.path.join(self._train_val_ims_path, bname), im)
-            cv2.imwrite(os.path.join(self._train_val_masks_path, bname), mask)
-        self.list2txt(self._subpatches_file, spatches_names)
-        return spatches_names
+    # def _save_train_dataset(self, ims: List[np.ndarray], masks: List[np.ndarray], output_folder: str) -> List[str]:
+    #     """
+    #     Method to save in disk the set of sub-patches images and masks previously generated.
+    #     :param ims: list of sub-patches images in numpy ndarray format.
+    #     :param masks: list of sub-patches masks in numpy ndarray format.
+    #     :return: list of sub-patches names
+    #     """
+    #     # Create both train and validation patches folders.
+    #     if not os.path.isdir(self._train_val_ims_path):
+    #         os.mkdir(self._train_val_ims_path)
+    #         os.mkdir(self._train_val_masks_path)
+    #
+    #     # Clear data if existing
+    #     self.clear_dir(self._train_val_ims_path)
+    #     self.clear_dir(self._train_val_masks_path)
+    #
+    #     num_digits = len(str(len(ims))) + 1
+    #     spatches_names = []
+    #     for idx, (im, mask) in enumerate(zip(ims, masks)):
+    #         bname = str(idx).zfill(num_digits) + ".png"
+    #         spatches_names.append(bname)
+    #         cv2.imwrite(os.path.join(self._train_val_ims_path, bname), im)
+    #         cv2.imwrite(os.path.join(self._train_val_masks_path, bname), mask)
+    #     self.list2txt(self._subpatches_file, spatches_names)
+    #     return spatches_names
 
     @staticmethod
     def txt2list(fname: str) -> List[str]:
@@ -260,18 +256,6 @@ class Dataset():
                 os.unlink(file)
             except Exception as e:
                 print_error("Failed to delete files: Reason: {}".format(e))
-
-    @staticmethod
-    def _normalize(ims: List[np.ndarray], masks: List[np.ndarray]):
-        """
-        Method to convert pairs of images and masks to the expected format as input for the segmentator model.
-        :param ims: list of images in numpy ndarray format, range [0..255]
-        :param masks: list of masks in numpy ndarray format, range [0..255]
-        :return: tuple with normalized sets: (BATCH_SIZE, W, H, CH) and range [0..1]
-        """
-        ims_t = np.expand_dims(normalize(np.array(ims), axis=1), 3)
-        masks_t = np.expand_dims((np.array(masks)), 3) / 255
-        return ims_t, masks_t
 
     def get_data_list(self, set: str) -> List[str]:
         """
