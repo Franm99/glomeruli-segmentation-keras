@@ -8,9 +8,9 @@ be read to check if there are changes that force to generate new data.
 """
 
 import cv2.cv2 as cv2
-import keras
 import matplotlib
 matplotlib.use('Agg')  # Uncomment when working with SSH and background processes!
+import keras
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -19,7 +19,6 @@ import random
 import tensorflow.keras.callbacks as cb
 import time
 from dataset import Dataset
-from skimage.measure import label, regionprops
 from tensorflow.keras.utils import normalize
 from tqdm import tqdm
 from typing import List, Optional, Tuple
@@ -36,7 +35,7 @@ class WorkFlow:
     """ Test bench is designed to study how a specific segmentation network works depending on
      a set of parameters, involving the data preprocessing, model definition, training, validation and testing."""
 
-    def __init__(self, stainings: List[str], mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool,
+    def __init__(self, mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool,
                  limit_samples: Optional[float]):
         """
         Initialize class variables and main paths.
@@ -50,7 +49,6 @@ class WorkFlow:
         used to avoid circular masks overlap.
         :param limit_samples: Percentage of the whole data in disk to use. JUST FOR DEBUG!
         """
-        self._stainings = stainings
         self._limit_samples = limit_samples
         self._mask_size = mask_size
         self._mask_simplex = mask_simplex
@@ -69,7 +67,7 @@ class WorkFlow:
             else:
                 self._masks_path = params.DATASET_PATH + '/gt/bboxes'
 
-    def run(self):
+    def run(self, resize_ratios: List[int], stainings: List[str]):
         """ Method to execute the test bench. Sequentially, the following steps will be executed:
         1. Initialize path where output files will be saved.
         2. Data pre-processing using Dataset class.
@@ -79,48 +77,52 @@ class WorkFlow:
         6. Testing
         This sequence will be executed for each set of configuration parameters used as input for the test bench class.
         """
-        for staining in self._stainings:
-            print_info("Testbench launched for {} staining".format(staining))
-            self._prepare_output()
+        for staining in stainings:
+            for resize_ratio in resize_ratios:
+                print_info("########## CONFIGURATION ##########")
+                print_info("Staining:       {}".format(staining))
+                print_info("Resize ratio:   {}".format(resize_ratio))
 
-            print_info("########## PREPARE DATASET ##########")
-            dataset = Dataset(staining=staining, mask_type=params.MASK_TYPE,
-                              mask_size=self._mask_size, mask_simplex=self._mask_simplex)
-            xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset)
+                self._prepare_output()
 
-            print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
-            model, callbacks = self._prepare_model()
+                print_info("########## PREPARE DATASET ##########")
+                dataset = Dataset(staining=staining, mask_type=params.MASK_TYPE,
+                                  mask_size=self._mask_size, mask_simplex=self._mask_simplex)
+                xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset, resize_ratio)
 
-            # 3. TRAINING AND VALIDATION STAGE
-            print_info("########## TRAINING AND VALIDATION STAGE ##########")
-            print_info("Num epochs: {}".format(params.EPOCHS))
-            print_info("Batch size: {}".format(params.BATCH_SIZE))
-            print_info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
-            print_info("LAUNCHING TRAINING PROCESS:")
-            history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
-                                validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
-            print_info("TRAINING PROCESS FINISHED.")
-            wfile = self.weights_path + '/model.hdf5'
-            print_info("Saving weights to: {}".format(wfile))
-            model.save(wfile)
-            print_info("Saving loss and accuracy results collected over epochs.")
-            self._save_results(history)
-            iou_score = self.compute_IoU(xval, yval, model, th=params.PREDICTION_THRESHOLD)
-            print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
-                                                                                        iou_score))
-            print_info("Saving validation predictions (patches) to disk.")
-            self._save_val_predictions(xval, yval, model)
+                print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
+                model, callbacks = self._prepare_model()
 
-            # 4. TESTING STAGE
-            print_info("########## TESTING STAGE ##########")
-            print_info("Computing predictions for testing set:")
-            test_predictions = self._prepare_test(xtest, dataset.test_list, model)  # Test predictions
-            test_names = dataset.get_data_list(set="test")
-            count_ptg = self.count_segmented_glomeruli(test_predictions, test_names)
-            print_info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
-            self.save_train_log(history, iou_score, count_ptg)
-            # When a test ends, clear the model to avoid influence in next ones.
-            del model
+                # 3. TRAINING AND VALIDATION STAGE
+                print_info("########## TRAINING AND VALIDATION STAGE ##########")
+                print_info("Num epochs: {}".format(params.EPOCHS))
+                print_info("Batch size: {}".format(params.BATCH_SIZE))
+                print_info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
+                print_info("LAUNCHING TRAINING PROCESS:")
+                history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
+                                    validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
+                print_info("TRAINING PROCESS FINISHED.")
+                wfile = self.weights_path + '/model.hdf5'
+                print_info("Saving weights to: {}".format(wfile))
+                model.save(wfile)
+                print_info("Saving loss and accuracy results collected over epochs.")
+                self._save_results(history)
+                iou_score = self.compute_IoU(xval, yval, model, th=params.PREDICTION_THRESHOLD)
+                print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
+                                                                                            iou_score))
+                print_info("Saving validation predictions (patches) to disk.")
+                self._save_val_predictions(xval, yval, model)
+
+                # 4. TESTING STAGE
+                print_info("########## TESTING STAGE ##########")
+                print_info("Computing predictions for testing set:")
+                test_predictions = self._prepare_test(xtest, dataset.test_list, model, resize_ratio)  # Test predictions
+                test_names = dataset.get_data_list(set="test")
+                count_ptg = self.count_segmented_glomeruli(test_predictions, test_names)
+                print_info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
+                self.save_train_log(history, iou_score, count_ptg, staining, resize_ratio)
+                # When a test ends, clear the model to avoid influence in next ones.
+                del model
 
     def _prepare_output(self):
         """
@@ -148,7 +150,7 @@ class WorkFlow:
         self.patches_val_path = os.path.join(self.output_folder_path, 'patches_val')
         os.mkdir(self.patches_val_path)
 
-    def _prepare_data(self, dataset: Dataset) -> Tuple:
+    def _prepare_data(self, dataset: Dataset, resize_ratio: int) -> Tuple:
         print_info("First split: Training+Validation & Testing split:")
         xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
         self.list2txt(os.path.join(self.output_folder_path, 'test_list.txt'), [os.path.basename(i) for i in xtest_p])
@@ -163,7 +165,8 @@ class WorkFlow:
         xtest_list, ytest_list = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
 
         print_info("DATA PREPROCESSING FOR TRAINING.")
-        patches_ims, patches_masks = dataset.get_spatches(ims, masks, rz_ratio=params.RESIZE_RATIO)
+        patches_ims, patches_masks = dataset.get_spatches(ims, masks, rz_ratio=resize_ratio,
+                                                          filter_spatches=params.FILTER_SUBPATCHES)
 
         # print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
 
@@ -205,9 +208,9 @@ class WorkFlow:
         print_info("CSV file logger:    {}".format("Y" if params.SAVE_TRAIN_LOGS else "N"))
         return model, callbacks
 
-    def _prepare_test(self, ims, ims_names, model):
+    def _prepare_test(self, ims, ims_names, model, resize_ratio):
         predictions = []
-        org_size = int(params.UNET_INPUT_SIZE * params.RESIZE_RATIO)
+        org_size = int(params.UNET_INPUT_SIZE * resize_ratio)
         for im, im_name in tqdm(zip(ims, ims_names), total=len(ims), desc="Test predictions"):
             pred = self._get_pred_mask(im, org_size, model, th=params.PREDICTION_THRESHOLD)
             predictions.append(pred)
@@ -316,16 +319,15 @@ class WorkFlow:
             plt.savefig(val_pred_path)
             plt.close()
 
-    def save_train_log(self, history, iou_score, count_ptg):
+    def save_train_log(self, history, iou_score, count_ptg, staining, resize_ratio):
         log_fname = os.path.join(self.output_folder_path, time.strftime("%Y%m%d-%H%M%S") + '.txt')
         with open(log_fname, 'w') as f:
             # Write parameters used
             f.write("TRAINING PARAMETERS:\n")
             f.write('TRAIN_SIZE={}\n'.format(params.TRAIN_SIZE))
-            f.write('STAINING={}\n'.format(params.STAINING))
-            f.write('RESIZE_RATIO={}\n'.format(params.TRAIN_SIZE))
-            f.write('PREDICTION_THRESHOLD={}\n'.format(params.RESIZE_RATIO))
-            f.write('TRAIN_SIZE={}\n'.format(params.TRAIN_SIZE))
+            f.write('STAINING={}\n'.format(staining))
+            f.write('RESIZE_RATIO={}\n'.format(resize_ratio))
+            f.write('PREDICTION_THRESHOLD={}\n'.format(params.PREDICTION_THRESHOLD))
             f.write('BATCH_SIZE={}\n'.format(params.BATCH_SIZE))
             f.write('EPOCHS={}\n'.format(params.EPOCHS))
             f.write('LEARNING_RATE={}\n'.format(params.LEARNING_RATE))
@@ -337,18 +339,18 @@ class WorkFlow:
             # Write training results
             f.write('TRAINING RESULTS\n')
             loss = history.history['loss']
-            val_loss = history.history['val_loss']
-            acc = history.history['accuracy']
+            # val_loss = history.history['val_loss']
+            # acc = history.history['accuracy']
             val_acc = history.history['val_accuracy']
             f.write('TRAINING_LOSS={}\n'.format(str(loss[-1])))
-            f.write('VALIDATION_LOSS={}\n'.format(str(val_loss[-1])))
-            f.write('TRAINING_ACC={}\n'.format(str(acc[-1])))
-            f.write('VALIDATION_ACC={}\n'.format(str(val_acc[-1])))
+            # f.write('VALIDATION_LOSS={}\n'.format(str(val_loss[-1])))
+            # f.write('TRAINING_ACC={}\n'.format(str(acc[-1])))
+            # f.write('VALIDATION_ACC={}\n'.format(str(val_acc[-1])))
             f.write('IoU_VAL_SCORE={}\n'.format(iou_score))
             f.write("--------------------------------------\n")
             # write testing results
             f.write('TESTING RESULTS\n')
-            f.write('GLOMERULI_HIT_PERCENTAGE={}\n'.format(count_ptg))
+            f.write('APROX_GLOMERULI_HIT_PERCENTAGE={}\n'.format(count_ptg))
 
     @staticmethod
     def _save_spatches(x: List[np.ndarray], y: List[np.ndarray], dir_path: str):
@@ -392,13 +394,12 @@ class WorkFlow:
 
 
 def train():
-    stainings = ["HE"]
-    workflow = WorkFlow(stainings=stainings,
-                         limit_samples=params.DEBUG_LIMIT,
-                         mask_type=params.MASK_TYPE,
-                         mask_size=params.MASK_SIZE,
-                         mask_simplex=params.APPLY_SIMPLEX)
-    workflow.run()
+    workflow = WorkFlow(limit_samples=params.DEBUG_LIMIT,
+                        mask_type=params.MASK_TYPE,
+                        mask_size=params.MASK_SIZE,
+                        mask_simplex=params.APPLY_SIMPLEX)
+    workflow.run(resize_ratios=params.RESIZE_RATIOS,
+                 stainings=params.STAININGS)
 
 
 def test():

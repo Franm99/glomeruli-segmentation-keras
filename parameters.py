@@ -15,8 +15,8 @@ TEST_MASKS_PATH = DATASET_PATH + '/train_val/patches_masks'
 # Images and input for model
 PATCH_SIZE = (3200, 3200)
 UNET_INPUT_SIZE = 256
-RESIZE_RATIO = 4
-STAINING = 'HE'
+STAININGS = ['HE']
+RESIZE_RATIOS = [1, 2, 3, 4]
 
 # Model parameters
 LEARNING_RATE = 0.001
@@ -30,6 +30,7 @@ MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
 # Mask Generator
 MASK_TYPE = MaskType.HANDCRAFTED
 # MASK_TYPE = MaskType.CIRCULAR
+FILTER_SUBPATCHES = False
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9
@@ -39,7 +40,7 @@ TRAIN_SIZE = 0.8
 MIN_LEARNING_RATE = 0.0001
 PREDICTION_THRESHOLD = 0.5
 BATCH_SIZE = 16
-EPOCHS = 100
+EPOCHS = 1
 
 # Model callbacks configuration
 ES_PATIENCE = 4
@@ -65,6 +66,6 @@ SAVE_TRAIN_LOGS = False
 ACTIVATE_REDUCELR = False
 LOAD_SPATCHES = False
 
-DEBUG_LIMIT = None
+DEBUG_LIMIT = 0.05
 MASK_SIZE = 100
 APPLY_SIMPLEX = False
