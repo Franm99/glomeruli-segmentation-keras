@@ -38,28 +38,26 @@ class Viewer(tk.Frame):
         self.local_true_positives = tk.StringVar()
         self.local_false_negatives = tk.StringVar()
         self.local_false_positives = tk.StringVar()
-        self.local_hit_pctg = tk.StringVar()
+        self.glomeruli = tk.StringVar()
         self.global_true_positives = tk.StringVar()
         self.global_false_negatives = tk.StringVar()
         self.global_false_positives = tk.StringVar()
-        self.global_hit_pctg = tk.StringVar()
+        self.accuracy = tk.StringVar()
+        self.precision = tk.StringVar()
 
         self.gt_glomeruli_counter = 0
         self.pred_glomeruli_counter = 0
+        self.TP = 0
+        self.FP = 0
+        self.FN = 0
 
-        self.lTP_list = []
-        self.lFN_list = []
-        self.lFP_list = []
-        self.lPctg_list = []
-        self.compute_accuracy()
-        self.gTP = sum(self.lTP_list)
-        self.gFN = sum(self.lFN_list)
-        self.gFP = sum(self.lFP_list)
-        self.gPctg = np.mean(self.lPctg_list)
+        self.TP_list = []
+        self.FN_list = []
+        self.FP_list = []
 
+        self.init_counters()
         self.create_widgets()
         self.update_interface()
-        self.update_globals()
 
     def create_widgets(self):
         """
@@ -72,37 +70,41 @@ class Viewer(tk.Frame):
 
         # Canvas for images
         self.canvas_im = tk.Canvas(self, width=self.canvas_w, height=self.canvas_h)
-        self.canvas_im.grid(row=1, rowspan=11, column=0, padx=10, pady=10)
+        self.canvas_im.grid(row=1, rowspan=13, column=0, padx=10, pady=10)
         self.canvas_gt = tk.Canvas(self, width=self.canvas_w, height=self.canvas_h)
-        self.canvas_gt.grid(row=1, rowspan=11, column=1, columnspan=3, padx=10, pady=10)
+        self.canvas_gt.grid(row=1, rowspan=13, column=1, columnspan=3, padx=10, pady=10)
         self.canvas_pred = tk.Canvas(self, width=self.canvas_w, height=self.canvas_h)
-        self.canvas_pred.grid(row=1, rowspan=11, column=4, padx=10, pady=10)
+        self.canvas_pred.grid(row=1, rowspan=13, column=4, padx=10, pady=10)
 
         # Buttons
         self.buttonPrev = tk.Button(self, text=u"\u2190", command=self.cb_prevImage, font="Arial 12",
                                     height=3, width=10, background="#595959", foreground="#F2F2F2")
-        self.buttonPrev.grid(row=12, column=1, padx=10, pady=10)
+        self.buttonPrev.grid(row=14, column=1, padx=10, pady=10)
         self.buttonPrev["state"] = tk.DISABLED
         self.buttonNext = tk.Button(self, text=u"\u2192", command=self.cb_nextImage, font="Arial 12",
                                     height=3, width=10, background="#595959", foreground="#F2F2F2")
-        self.buttonNext.grid(row=12, column=3, padx=10, pady=10)
+        self.buttonNext.grid(row=14, column=3, padx=10, pady=10)
         self.buttonSave = tk.Button(self, text="Save", command=self.cb_save_results, font="Arial 12",
                                     height=3, width=10, background="#595959", foreground="#F2F2F2")
-        self.buttonSave.grid(row=12, column=4, sticky="e", padx=10, pady=10)
+        self.buttonSave.grid(row=14, column=4, sticky="e", padx=10, pady=10)
 
         # Text panel
         ttk.Separator(self, orient=tk.VERTICAL).grid(column=5, row=0, rowspan=15, sticky='ns')
         tk.Label(self, text="Local values", anchor="w", font="Arial 14 bold").grid(column=6, columnspan=2, row=1, padx=10)
-        tk.Label(self, text="True positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=2, padx=10, sticky="w")
-        tk.Label(self, text="False negatives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=3, padx=10, sticky="w")
-        tk.Label(self, text="False positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=4, padx=10, sticky="w")
-        tk.Label(self, text="Hit ratio:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=5, padx=10, sticky="w")
+
+        tk.Label(self, text="True Positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=2, padx=10, sticky="w")
+        tk.Label(self, text="False Negatives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=3, padx=10, sticky="w")
+        tk.Label(self, text="False Positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=4, padx=10, sticky="w")
+
         ttk.Separator(self, orient=tk.HORIZONTAL).grid(column=5, columnspan=3, row=6, sticky='we')
         tk.Label(self, text="Global values", font="Arial 14 bold").grid(column=6, columnspan=2, row=7, padx=10)
-        tk.Label(self, text="True positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=8, padx=10, sticky="w")
-        tk.Label(self, text="False negatives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=9, padx=10, sticky="w")
-        tk.Label(self, text="False positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=10, padx=10, sticky="w")
-        tk.Label(self, text="Hit ratio:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=11, padx=10, sticky="w")
+
+        tk.Label(self, text="Glomeruli:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=8, padx=10, sticky="w")
+        tk.Label(self, text="True Positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=9, padx=10, sticky="w")
+        tk.Label(self, text="False Negatives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=10, padx=10, sticky="w")
+        tk.Label(self, text="False Positives:", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=11, padx=10, sticky="w")
+        tk.Label(self, text="Accuracy (%):", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=12, padx=10, sticky="w")
+        tk.Label(self, text="Precision (%):", anchor="w", font="Arial 10").grid(column=6, columnspan=1, row=13, padx=10, sticky="w")
 
         # Variable labels
         self.lblLocalTP = tk.Label(self, textvariable=self.local_true_positives)
@@ -111,16 +113,19 @@ class Viewer(tk.Frame):
         self.lblLocalFN.grid(column=7, row=3, padx=10, sticky="w")
         self.lblLocalFP = tk.Label(self, textvariable=self.local_false_positives)
         self.lblLocalFP.grid(column=7, row=4, padx=10, sticky="w")
-        self.lblLocalPctg = tk.Label(self, textvariable=self.local_hit_pctg)
-        self.lblLocalPctg.grid(column=7, row=5, padx=10, sticky="w")
+
+        self.lblGlomeruli = tk.Label(self, textvariable=self.glomeruli)
+        self.lblGlomeruli.grid(column=7, row=8, padx=10, sticky="w")
         self.lblGlobalTP = tk.Label(self, textvariable=self.global_true_positives)
-        self.lblGlobalTP.grid(column=7, row=8, padx=10, sticky="w")
+        self.lblGlobalTP.grid(column=7, row=9, padx=10, sticky="w")
         self.lblGlobalFN = tk.Label(self, textvariable=self.global_false_negatives)
-        self.lblGlobalFN.grid(column=7, row=9, padx=10, sticky="w")
+        self.lblGlobalFN.grid(column=7, row=10, padx=10, sticky="w")
         self.lblGlobalFP = tk.Label(self, textvariable=self.global_false_positives)
-        self.lblGlobalFP.grid(column=7, row=10, padx=10, sticky="w")
-        self.lblGlobalPctg = tk.Label(self, textvariable=self.global_hit_pctg)
-        self.lblGlobalPctg.grid(column=7, row=11, padx=10, sticky="w")
+        self.lblGlobalFP.grid(column=7, row=11, padx=10, sticky="w")
+        self.lblAccuracy = tk.Label(self, textvariable=self.accuracy)
+        self.lblAccuracy.grid(column=7, row=12, padx=10, sticky="w")
+        self.lblPrecision = tk.Label(self, textvariable=self.precision)
+        self.lblPrecision.grid(column=7, row=13, padx=10, sticky="w")
 
     def show_images(self):
         """
@@ -134,8 +139,8 @@ class Viewer(tk.Frame):
 
         self.canvas_pred.configure(width=self.canvas_w, height=self.canvas_h)
         self.canvas_pred.create_image(0, 0, image=self.preds[self.idx], anchor=tk.NW)
-        self.canvas_pred.bind('<Button-1>', self.cb_add_false_positive)
-        self.canvas_pred.bind('<Button-3>', self.cb_remove_false_positive)
+        self.canvas_pred.bind('<Button-1>', self.cb_add_true_positive)
+        self.canvas_pred.bind('<Button-3>', self.cb_add_false_positive)
 
     def update_interface(self):
         """
@@ -144,72 +149,106 @@ class Viewer(tk.Frame):
         self.show_images()
 
         # Update text variables
-        self.local_true_positives.set(str(self.lTP_list[self.idx]))
-        self.local_false_negatives.set(str(self.lFN_list[self.idx]))
-        self.local_false_positives.set(str(self.lFP_list[self.idx]))
-        self.local_hit_pctg.set(str(self.lPctg_list[self.idx]))
+        self.local_true_positives.set(str(self.TP_list[self.idx]))
+        self.local_false_negatives.set(str(self.FN_list[self.idx]))
+        self.local_false_positives.set(str(self.FP_list[self.idx]))
 
-    def update_globals(self):
-        """
-        Update global values
-        """
-        self.global_true_positives.set(str(self.gTP))
-        self.global_false_negatives.set(str(self.gFN))
-        self.global_false_positives.set(str(self.gFP))
-        self.global_hit_pctg.set(str(self.gPctg))
-
-    def compute_accuracy(self):
-        """
-        Compute the accuracy as the ratio of true positive cases (i.e., glomeruli correctly predicted) and the whole set
-        of glomeruli.
-        """
+    def init_counters(self):
         for i, (mask, pred) in enumerate(zip(self.masks_np, self.preds_np)):
             gt_centroids = find_blobs_centroids(mask)
-            pred_centroids = find_blobs_centroids(pred)
             self.gt_glomeruli_counter += len(gt_centroids)
-            self.pred_glomeruli_counter += len(pred_centroids)
-            self.lTP_list.append(self.from_mask_to_pred(gt_centroids, pred))
-            self.lFN_list.append(len(gt_centroids) - self.lTP_list[i])
-            self.lPctg_list.append(self.lTP_list[i] / self.num_ims)
-            self.lFP_list.append(self.from_pred_to_mask(pred_centroids, mask))
+            self.FN_list.append(len(gt_centroids))
+            self.TP_list.append(0)
+            self.FP_list.append(0)
+        self.local_true_positives.set(str(0))
+        self.local_false_negatives.set(str(self.FN_list[self.idx]))
+        self.local_false_positives.set(str(0))
+        self.glomeruli.set(str(self.gt_glomeruli_counter))
+        self.global_true_positives.set(str(0))
+        self.global_false_positives.set(str(0))
+        self.global_false_negatives.set(str(self.gt_glomeruli_counter))
+        self.FN = self.gt_glomeruli_counter
+        self.accuracy.set(str(0))
+        self.precision.set(str(0))
 
-    def from_mask_to_pred(self, gt_centroids: List[Tuple[float, float]], pred: np.ndarray) -> int:
-        """
-        Check if glomeruli found in the ground-truth mask can be found in the prediction mask.
-        Used to detect TRUE POSITIVES (and consequently, FALSE NEGATIVES).
-        """
-        true_positives = 0
-        for (cy, cx) in gt_centroids:
-            true_positives += 1 if pred[int(cy), int(cx)] == 1 else 0
-        return true_positives
+    # def from_mask_to_pred(self, gt_centroids: List[Tuple[float, float]], pred: np.ndarray) -> int:
+    #     """
+    #     Check if glomeruli found in the ground-truth mask can be found in the prediction mask.
+    #     Used to detect TRUE POSITIVES (and consequently, FALSE NEGATIVES).
+    #     """
+    #     true_positives = 0
+    #     for (cy, cx) in gt_centroids:
+    #         true_positives += 1 if pred[int(cy), int(cx)] == 1 else 0
+    #     return true_positives
+    #
+    # def from_pred_to_mask(self, pred_centroids: List[Tuple[float, float]], mask: np.ndarray) -> int:
+    #     """
+    #     Check if glomeruli found in the prediction mask can be found in the ground-truth mask.
+    #     Used to detect FALSE POSITIVES
+    #     """
+    #     false_positives = 0
+    #     for (cy, cx) in pred_centroids:
+    #         false_positives += 1 if mask[int(cy), int(cx)] == 0 else 0
+    #     return false_positives
 
-    def from_pred_to_mask(self, pred_centroids: List[Tuple[float, float]], mask: np.ndarray) -> int:
+    def cb_add_true_positive(self, event):
         """
-        Check if glomeruli found in the prediction mask can be found in the ground-truth mask.
-        Used to detect FALSE POSITIVES
+        Callback function to add new True Positive case.
         """
-        false_positives = 0
-        for (cy, cx) in pred_centroids:
-            false_positives += 1 if mask[int(cy), int(cx)] == 0 else 0
-        return false_positives
+        self.TP += 1
+        self.TP_list[self.idx] += 1
+        self.FN -= 1
+        self.FN_list[self.idx] -= 1
+        self.local_true_positives.set(str(self.TP_list[self.idx]))
+        self.global_true_positives.set(str(self.TP))
+        self.local_false_negatives.set(str(self.FN_list[self.idx]))
+        self.global_false_negatives.set(str(self.FN))
+
+        # Update accuracy and precision values
+        self.accuracy.set("{:.2f}".format(self.compute_accuracy(self.TP, self.FN)))
+        self.precision.set("{:.2f}".format(self.compute_precision(self.TP, self.FP)))
+
 
     def cb_add_false_positive(self, event):
         """
-        Callback function to add new False Positive case in current sample
+        Callback function to add new False Positive case.
         """
-        self.lFP_list[self.idx] += 1
-        self.gFP += 1
-        self.local_false_positives.set(str(self.lFP_list[self.idx]))
-        self.global_false_positives.set(str(self.gFP))
+        self.FP += 1
+        self.FP_list[self.idx] += 1
+        self.local_false_positives.set(str(self.FP_list[self.idx]))
+        self.global_false_positives.set(str(self.FP))
+
+        # Update precision value
+        prec = (self.TP / (self.TP + self.FP)) * 100.0
+        self.precision.set("{:.2f}".format(self.compute_precision(self.TP, self.FP)))
+
+    @staticmethod
+    def compute_accuracy(tp, fn):
+        return (tp / (tp + fn)) * 100.0
+
+    @staticmethod
+    def compute_precision(tp, fp):
+        return (tp / (tp + fp)) * 100.0
+
+    # def cb_add_false_positive(self, event):
+    #     """
+    #     Callback function to add new False Positive case in current sample
+    #     """
+    #     self.my_count += 1
+    #     self.lFP_list[self.idx] += 1
+    #     self.gFP += 1
+    #     self.local_false_positives.set(str(self.lFP_list[self.idx]))
+    #     self.global_false_positives.set(str(self.my_count))
 
     def cb_remove_false_positive(self, event):
         """
         Callback function to remove False Positive case in current sample
         """
+        self.my_count -= 1
         self.lFP_list[self.idx] -= 1
         self.gFP -= 1
         self.local_false_positives.set(str(self.lFP_list[self.idx]))
-        self.global_false_positives.set(str(self.gFP))
+        self.global_false_positives.set(str(self.my_count))
 
     def cb_save_results(self):
         """
