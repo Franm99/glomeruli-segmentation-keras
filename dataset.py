@@ -124,13 +124,14 @@ class Dataset():
         return ims, masks
 
     @timer
-    def get_spatches(self, ims: List[np.ndarray], masks: List[np.ndarray], rz_ratio: int) \
-            -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def get_spatches(self, ims: List[np.ndarray], masks: List[np.ndarray], rz_ratio: int,
+                     filter_spatches: bool = params.FILTER_SUBPATCHES) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Method to generate sub-patches from original patches with compatible dimensions for the model input.
         :param ims: List of images in Numpy ndarray format.
         :param masks: List of masks in Numpy ndarray format.
         :param rz_ratio: Resize ratio, used to select the relative size of sub-patches on images.
+        :param filter_spatches: Choose whether to add patches not containing glomeruli or filter them.
         :return: tuple containing two lists: patches images and masks. Numpy array format, NOT NORMALIZED YET!.
         """
         patches = []
@@ -147,10 +148,21 @@ class Dataset():
                         y = h - patch_size_or
                     patch_arr = im[y:y+patch_size_or, x:x+patch_size_or]
                     mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
-                    if self._filter(mask_arr):
-                        # Convert to PIL for resizing and returning to numpy array format.
-                        patch = np.asarray(Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
-                        patch_mask = np.asarray(Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                    # TODO: refactor this if else condition:
+                    if filter_spatches:
+                        if self._filter(mask_arr):
+                            # Convert to PIL for resizing and returning to numpy array format.
+                            patch = np.asarray(
+                                Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                            patch_mask = np.asarray(
+                                Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                            patches.append(patch)
+                            patches_masks.append(patch_mask)
+                    else:
+                        patch = np.asarray(
+                            Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                        patch_mask = np.asarray(
+                            Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
                         patches.append(patch)
                         patches_masks.append(patch_mask)
 
