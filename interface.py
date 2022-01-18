@@ -28,9 +28,12 @@ class Viewer(tk.Frame):
         self.masks_np = self.load_gt()
 
         # Convert to PhotoImage format to display on tkinter canvas
-        self.preds = self.toImageTk(self.preds_np)
-        self.ims = self.toImageTk(self.ims_np)
-        self.masks = self.toImageTk(self.masks_np)
+        # self.preds = self.toImageTk(self.preds_np)
+        # self.ims = self.toImageTk(self.ims_np)
+        # self.masks = self.toImageTk(self.masks_np)
+        self.preds = [self.toImageTk(pred) for pred in self.preds_np]
+        self.ims = [self.toImageTk(im) for im in self.ims_np]
+        self.masks = [self.toImageTk(mask) for mask in self.masks_np]
 
         # Initialize interface variables
         self.idx = 0
@@ -171,26 +174,6 @@ class Viewer(tk.Frame):
         self.accuracy.set(str(0))
         self.precision.set(str(0))
 
-    # def from_mask_to_pred(self, gt_centroids: List[Tuple[float, float]], pred: np.ndarray) -> int:
-    #     """
-    #     Check if glomeruli found in the ground-truth mask can be found in the prediction mask.
-    #     Used to detect TRUE POSITIVES (and consequently, FALSE NEGATIVES).
-    #     """
-    #     true_positives = 0
-    #     for (cy, cx) in gt_centroids:
-    #         true_positives += 1 if pred[int(cy), int(cx)] == 1 else 0
-    #     return true_positives
-    #
-    # def from_pred_to_mask(self, pred_centroids: List[Tuple[float, float]], mask: np.ndarray) -> int:
-    #     """
-    #     Check if glomeruli found in the prediction mask can be found in the ground-truth mask.
-    #     Used to detect FALSE POSITIVES
-    #     """
-    #     false_positives = 0
-    #     for (cy, cx) in pred_centroids:
-    #         false_positives += 1 if mask[int(cy), int(cx)] == 0 else 0
-    #     return false_positives
-
     def cb_add_true_positive(self, event):
         """
         Callback function to add new True Positive case.
@@ -207,7 +190,8 @@ class Viewer(tk.Frame):
         # Update accuracy and precision values
         self.accuracy.set("{:.2f}".format(self.compute_accuracy(self.TP, self.FN)))
         self.precision.set("{:.2f}".format(self.compute_precision(self.TP, self.FP)))
-
+        self.plot_mark(event, color="#00ff00")
+        print("Left-click:", event.x, event.y)
 
     def cb_add_false_positive(self, event):
         """
@@ -221,6 +205,8 @@ class Viewer(tk.Frame):
         # Update precision value
         prec = (self.TP / (self.TP + self.FP)) * 100.0
         self.precision.set("{:.2f}".format(self.compute_precision(self.TP, self.FP)))
+        self.plot_mark(event, color="#0000ff")
+        print("Right-click:", event.x, event.y)
 
     @staticmethod
     def compute_accuracy(tp, fn):
@@ -230,26 +216,6 @@ class Viewer(tk.Frame):
     def compute_precision(tp, fp):
         return (tp / (tp + fp)) * 100.0
 
-    # def cb_add_false_positive(self, event):
-    #     """
-    #     Callback function to add new False Positive case in current sample
-    #     """
-    #     self.my_count += 1
-    #     self.lFP_list[self.idx] += 1
-    #     self.gFP += 1
-    #     self.local_false_positives.set(str(self.lFP_list[self.idx]))
-    #     self.global_false_positives.set(str(self.my_count))
-
-    def cb_remove_false_positive(self, event):
-        """
-        Callback function to remove False Positive case in current sample
-        """
-        self.my_count -= 1
-        self.lFP_list[self.idx] -= 1
-        self.gFP -= 1
-        self.local_false_positives.set(str(self.lFP_list[self.idx]))
-        self.global_false_positives.set(str(self.my_count))
-
     def cb_save_results(self):
         """
         Method to save (global) results in a txt file for later study.
@@ -257,12 +223,12 @@ class Viewer(tk.Frame):
         """
         filename = os.path.join('output', self._output_folder, "test_analysis.txt")
         with open(file=filename, mode="w") as f:
-            f.write("GROUND-TRUTH GLOMERULI COUNT: {}\n".format(str(self.gt_glomeruli_counter)))
-            f.write("PREDICTION GLOMERULI COUNT: {}\n".format(str(self.pred_glomeruli_counter)))
+            f.write("GLOMERULI COUNT: {}\n".format(str(self.gt_glomeruli_counter)))
             f.write("TRUE POSITIVES: {}\n".format(self.global_true_positives.get()))
             f.write("FALSE NEGATIVES: {}\n".format(self.global_false_negatives.get()))
             f.write("FALSE POSITIVES: {}\n".format(self.global_false_positives.get()))
-            f.write("HIT PERCENTAGE: {}\n".format(self.global_hit_pctg.get()))
+            f.write("ACCURACY (%): {}\n".format(self.accuracy.get()))
+            f.write("PRECISION (%): {}\n".format(self.precision.get()))
         print("Results saved to file: {}".format(filename))
 
     def cb_prevImage(self):
@@ -293,6 +259,13 @@ class Viewer(tk.Frame):
         if self.buttonPrev["state"] == tk.DISABLED:
             self.buttonPrev["state"] = tk.NORMAL
 
+    def plot_mark(self, event, color: str):
+        # cy, cx = event.y, event.x
+        # y, x = np.ogrid[-cy:]
+        self.preds_np[self.idx][event.y, event.x] = self.hex2rgb(color)
+        self.preds[self.idx] = self.toImageTk(self.preds_np[self.idx])
+        self.show_images()
+
     def load_test_predictions(self) -> Tuple[List[str], List[np.ndarray]]:
         """
         Load test prediction masks from the specified folder.
@@ -300,7 +273,7 @@ class Viewer(tk.Frame):
         """
         dir_path = os.path.join('output', self._output_folder, 'test_pred')
         test_pred_list = glob(dir_path + '/*')
-        pred_ims_np = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in test_pred_list]
+        pred_ims_np = [cv2.imread(i, cv2.IMREAD_COLOR) for i in test_pred_list]
         test_pred_names = [os.path.basename(i) for i in test_pred_list]
         return test_pred_names, pred_ims_np
 
@@ -324,11 +297,25 @@ class Viewer(tk.Frame):
         gt_list = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in filenames]
         return gt_list
 
-    def toImageTk(self, ims: List[np.ndarray]) -> List[PhotoImage]:
+    # def toImageTk(self, ims: List[np.ndarray]) -> List[PhotoImage]:
+    #     """
+    #     :param ims: List of images in numpy array format
+    #     :return: List of images in PhotoImage format (for tkinter canvas)
+    #     """
+    #     ims_pil = [Img.fromarray(im) for im in ims]
+    #     ims = [im.resize((self.canvas_w, self.canvas_h)) for im in ims_pil]
+    #     return [ImageTk.PhotoImage(im) for im in ims]
+
+    def toImageTk(self, im: np.ndarray) -> PhotoImage:
         """
-        :param ims: List of images in numpy array format
-        :return: List of images in PhotoImage format (for tkinter canvas)
+        :param im: image in numpy array format
+        :return: image in PhotoImage format (for tkinter canvas)
         """
-        ims_pil = [Img.fromarray(im) for im in ims]
-        ims = [im.resize((self.canvas_w, self.canvas_h)) for im in ims_pil]
-        return [ImageTk.PhotoImage(im) for im in ims]
+        im_pil = Img.fromarray(im)
+        im = im_pil.resize((self.canvas_w, self.canvas_h))
+        return ImageTk.PhotoImage(im)
+
+    @staticmethod
+    def hex2rgb(hex):
+        r, g, b = hex[1:3], hex[3:5], hex[5:7]
+        return int(r, 16), int(g, 16), int(b, 16)

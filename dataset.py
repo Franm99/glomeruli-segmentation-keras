@@ -1,10 +1,3 @@
-"""
-TODO
-Write all image filenames to a txt, previous to the train+val - test split. This way, i ensure
-the same order when importing to a list. Then, the split is performed, and two new txt will be
-generated, containing the names for both the train+val and test sets. SAME PROCESS for sub-patches.
-"""
-
 import cv2.cv2 as cv2
 import glob
 import matplotlib.pyplot as plt
@@ -148,26 +141,16 @@ class Dataset():
                         y = h - patch_size_or
                     patch_arr = im[y:y+patch_size_or, x:x+patch_size_or]
                     mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
-                    # TODO: refactor this if else condition:
-                    if filter_spatches:
-                        if self._filter(mask_arr):
-                            # Convert to PIL for resizing and returning to numpy array format.
-                            patch = np.asarray(
-                                Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
-                            patch_mask = np.asarray(
-                                Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
-                            patches.append(patch)
-                            patches_masks.append(patch_mask)
-                    else:
-                        patch = np.asarray(
-                            Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
-                        patch_mask = np.asarray(
-                            Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
-                        patches.append(patch)
-                        patches_masks.append(patch_mask)
 
-        # # Save train dataset to disk for later use
-        # spatches_names = self._save_train_dataset(patches, patches_masks, output_folder)
+                    if filter_spatches:
+                        if not self._filter(mask_arr):
+                            continue
+                    patch = np.asarray(
+                        Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                    patch_mask = np.asarray(
+                        Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                    patches.append(patch)
+                    patches_masks.append(patch_mask)
 
         print_info("{} patches generated from {} images for training and validation.".format(len(patches), len(ims)))
         return patches, patches_masks
