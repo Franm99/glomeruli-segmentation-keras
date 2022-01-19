@@ -12,6 +12,7 @@ from typing import List, Tuple, Optional, Dict
 from tkinter import filedialog
 import os
 from skimage.measure import regionprops, label
+from getpass import getpass
 
 
 
@@ -158,8 +159,13 @@ def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int,
 
 
 def init_email_info():
-    sender_email = input("Specify sender email: ")
-    password = input("Password: ")
+    def_sender_email = "pythonAdvisor@gmail.com"
+    req = input("Use default sender ({}) [Y/n]: ".format(def_sender_email))
+    if req.lower() == "y":
+        sender_email = def_sender_email
+    else:
+        sender_email = input("Specify sender email: ")
+    password = getpass()  # Just for terminal executions, not IDLE!
     receiver_email = input("Specify receiver email: ")
     return sender_email, password, receiver_email
 

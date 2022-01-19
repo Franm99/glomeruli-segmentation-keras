@@ -4,8 +4,8 @@ from utils import MaskType
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
 # DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
-# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
-DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
+DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+# DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 
 OUTPUT_BASENAME = 'output'
@@ -32,7 +32,6 @@ MASK_TYPE = MaskType.HANDCRAFTED
 # MASK_TYPE = MaskType.CIRCULAR
 FILTER_SUBPATCHES = False
 SAVE_TRAINVAL = False
-EXEC_INTERATIONS = 3
 SEND_EMAIL = True
 
 # Training parameters and hyper-parameters
