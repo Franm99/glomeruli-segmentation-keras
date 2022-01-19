@@ -14,6 +14,7 @@ import os
 from skimage.measure import regionprops, label
 
 
+
 # ---- CLASSES ----
 
 class MaskType(Enum):
@@ -155,6 +156,12 @@ def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int,
             data[nlim].append(point)
     return data
 
+
+def init_email_info():
+    sender_email = input("Specify sender email: ")
+    password = input("Password: ")
+    receiver_email = input("Specify receiver email: ")
+    return sender_email, password, receiver_email
 
 
 def browse_path():

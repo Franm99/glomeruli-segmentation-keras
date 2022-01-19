@@ -19,7 +19,14 @@ from tensorflow.keras.utils import normalize
 from tqdm import tqdm
 from typing import List, Optional, Tuple
 from unet_model import unet_model
-from utils import get_data_from_xml, print_info, MaskType
+from utils import get_data_from_xml, print_info, MaskType, init_email_info
+import smtplib
+import ssl
+from email.mime.multipart import MIMEMultipart
+import time
+
+if params.SEND_EMAIL:
+    sender_email, password, receiver_email = init_email_info()
 
 
 def get_model() -> keras.Model:
@@ -85,6 +92,7 @@ class WorkFlow:
                 xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset, resize_ratio)
 
                 for exec_iter in range(params.EXEC_INTERATIONS):
+                    ts = time.time()
                     self._prepare_output()
 
                     print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
@@ -120,6 +128,8 @@ class WorkFlow:
                     self.save_train_log(history, iou_score, count_ptg, staining, resize_ratio)
                     # When a test ends, clear the model to avoid influence in next ones.
                     del model
+                    exec_time = time.time() - ts
+                    self.send_log_email(exec_iter, exec_time)
 
     def _prepare_output(self):
         """
@@ -349,6 +359,20 @@ class WorkFlow:
             # write testing results
             f.write('TESTING RESULTS\n')
             f.write('APROX_GLOMERULI_HIT_PERCENTAGE={}\n'.format(count_ptg))
+
+    @staticmethod
+    def send_log_email(i: int, t: float):
+        port = 465  # for SSL
+        message = """\
+        Subject: Training finished
+        
+        Execution iteration: {}
+        Time spent: {:2.4f}""".format(i, t)
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
+            server.login(sender_email, password)
+            server.sendmail(sender_email, receiver_email, message.as_string())
+
 
     @staticmethod
     def _save_spatches(x: List[np.ndarray], y: List[np.ndarray], dir_path: str):

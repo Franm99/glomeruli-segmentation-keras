@@ -33,6 +33,7 @@ MASK_TYPE = MaskType.HANDCRAFTED
 FILTER_SUBPATCHES = False
 SAVE_TRAINVAL = False
 EXEC_INTERATIONS = 3
+SEND_EMAIL = True
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9
