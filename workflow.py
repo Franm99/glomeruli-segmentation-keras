@@ -1,10 +1,6 @@
 """
 TODO
 Redirect prints to a log file filtering just those with the "info", "warn" and "err" blueprints"
-
-TODO
-Write parameters from the last training performed to a txt. For next training, this file will
-be read to check if there are changes that force to generate new data.
 """
 
 import cv2.cv2 as cv2
@@ -173,8 +169,9 @@ class WorkFlow:
         print_info("Second split: Training & Validation split:")
         xtrain, xval, ytrain, yval = dataset.split_train_val(patches_ims, patches_masks)
 
-        self._save_spatches(xtrain, ytrain, self.patches_train_path)
-        self._save_spatches(xval, yval, self.patches_val_path)
+        if params.SAVE_TRAINVAL:
+            self._save_spatches(xtrain, ytrain, self.patches_train_path)
+            self._save_spatches(xval, yval, self.patches_val_path)
 
         # train & val sets are returned as ndarray tensors, ready to be used as input for the U-Net, while test set is a
         # list. It will be processed in the TEST stage.

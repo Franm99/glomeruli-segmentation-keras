@@ -31,6 +31,7 @@ MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
 MASK_TYPE = MaskType.HANDCRAFTED
 # MASK_TYPE = MaskType.CIRCULAR
 FILTER_SUBPATCHES = False
+SAVE_TRAINVAL = False
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9

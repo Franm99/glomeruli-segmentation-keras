@@ -30,7 +30,7 @@ class Size(Enum):  # Number of pixels for synthetic masks radii.
     SMALL = 100
 
 
-GlomeruliClass = {  # TODO: re-classify sizes
+GlomeruliClass = {
     # Huge
     "MEMBRANOSO": Size.HUGE.value,
     "GNMP": Size.HUGE.value,

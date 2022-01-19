@@ -141,7 +141,7 @@ class Dataset():
                         y = h - patch_size_or
                     patch_arr = im[y:y+patch_size_or, x:x+patch_size_or]
                     mask_arr = mask[y:y+patch_size_or, x:x+patch_size_or]
-
+                    # TODO: Add balancing stage when no filtering is used.
                     if filter_spatches:
                         if not self._filter(mask_arr):
                             continue
