@@ -79,46 +79,47 @@ class WorkFlow:
                 print_info("Staining:       {}".format(staining))
                 print_info("Resize ratio:   {}".format(resize_ratio))
 
-                self._prepare_output()
-
                 print_info("########## PREPARE DATASET ##########")
                 dataset = Dataset(staining=staining, mask_type=params.MASK_TYPE,
                                   mask_size=self._mask_size, mask_simplex=self._mask_simplex)
                 xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset, resize_ratio)
 
-                print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
-                model, callbacks = self._prepare_model()
+                for exec_iter in range(params.EXEC_INTERATIONS):
+                    self._prepare_output()
 
-                # 3. TRAINING AND VALIDATION STAGE
-                print_info("########## TRAINING AND VALIDATION STAGE ##########")
-                print_info("Num epochs: {}".format(params.EPOCHS))
-                print_info("Batch size: {}".format(params.BATCH_SIZE))
-                print_info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
-                print_info("LAUNCHING TRAINING PROCESS:")
-                history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
-                                    validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
-                print_info("TRAINING PROCESS FINISHED.")
-                wfile = self.weights_path + '/model.hdf5'
-                print_info("Saving weights to: {}".format(wfile))
-                model.save(wfile)
-                print_info("Saving loss and accuracy results collected over epochs.")
-                self._save_results(history)
-                iou_score = self.compute_IoU(xval, yval, model, th=params.PREDICTION_THRESHOLD)
-                print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
-                                                                                            iou_score))
-                print_info("Saving validation predictions (patches) to disk.")
-                self._save_val_predictions(xval, yval, model)
+                    print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
+                    model, callbacks = self._prepare_model()
 
-                # 4. TESTING STAGE
-                print_info("########## TESTING STAGE ##########")
-                print_info("Computing predictions for testing set:")
-                test_predictions = self._prepare_test(xtest, dataset.test_list, model, resize_ratio)  # Test predictions
-                test_names = dataset.get_data_list(set="test")
-                count_ptg = self.count_segmented_glomeruli(test_predictions, test_names)
-                print_info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
-                self.save_train_log(history, iou_score, count_ptg, staining, resize_ratio)
-                # When a test ends, clear the model to avoid influence in next ones.
-                del model
+                    # 3. TRAINING AND VALIDATION STAGE
+                    print_info("########## TRAINING AND VALIDATION STAGE ##########")
+                    print_info("Num epochs: {}".format(params.EPOCHS))
+                    print_info("Batch size: {}".format(params.BATCH_SIZE))
+                    print_info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
+                    print_info("LAUNCHING TRAINING PROCESS:")
+                    history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
+                                        validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
+                    print_info("TRAINING PROCESS FINISHED.")
+                    wfile = self.weights_path + '/model.hdf5'
+                    print_info("Saving weights to: {}".format(wfile))
+                    model.save(wfile)
+                    print_info("Saving loss and accuracy results collected over epochs.")
+                    self._save_results(history)
+                    iou_score = self.compute_IoU(xval, yval, model, th=params.PREDICTION_THRESHOLD)
+                    print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
+                                                                                                iou_score))
+                    print_info("Saving validation predictions (patches) to disk.")
+                    self._save_val_predictions(xval, yval, model)
+
+                    # 4. TESTING STAGE
+                    print_info("########## TESTING STAGE ##########")
+                    print_info("Computing predictions for testing set:")
+                    test_predictions = self._prepare_test(xtest, dataset.test_list, model, resize_ratio)  # Test predictions
+                    test_names = dataset.get_data_list(set="test")
+                    count_ptg = self.count_segmented_glomeruli(test_predictions, test_names)
+                    print_info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
+                    self.save_train_log(history, iou_score, count_ptg, staining, resize_ratio)
+                    # When a test ends, clear the model to avoid influence in next ones.
+                    del model
 
     def _prepare_output(self):
         """

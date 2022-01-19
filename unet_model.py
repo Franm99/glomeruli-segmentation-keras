@@ -65,6 +65,6 @@ def unet_model(im_h, im_w, im_ch):
                   loss='binary_crossentropy',
                   metrics=params.MODEL_METRICS)
     # model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    model.summary()
+    # model.summary()
 
     return model

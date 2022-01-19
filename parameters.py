@@ -32,6 +32,7 @@ MASK_TYPE = MaskType.HANDCRAFTED
 # MASK_TYPE = MaskType.CIRCULAR
 FILTER_SUBPATCHES = False
 SAVE_TRAINVAL = False
+EXEC_INTERATIONS = 3
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9
