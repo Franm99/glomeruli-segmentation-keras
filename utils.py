@@ -14,8 +14,6 @@ import os
 from skimage.measure import regionprops, label
 from getpass import getpass
 
-
-
 # ---- CLASSES ----
 
 class MaskType(Enum):

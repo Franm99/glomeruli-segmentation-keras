@@ -4,8 +4,8 @@ from utils import MaskType
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
 # DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
-DATASET_PATH = 'D:/DataGlomeruli'  # Windows
-# DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
+# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 
 OUTPUT_BASENAME = 'output'
@@ -16,7 +16,7 @@ TEST_MASKS_PATH = DATASET_PATH + '/train_val/patches_masks'
 PATCH_SIZE = (3200, 3200)
 UNET_INPUT_SIZE = 256
 STAININGS = ['HE']
-RESIZE_RATIOS = [6]
+RESIZE_RATIOS = [4, 4, 4, 3, 3, 3, 2, 2, 2]
 
 # Model parameters
 LEARNING_RATE = 0.001
@@ -30,14 +30,14 @@ MODEL_METRICS = [  # Metrics: https://keras.io/api/metrics/
 # Mask Generator
 MASK_TYPE = MaskType.HANDCRAFTED
 # MASK_TYPE = MaskType.CIRCULAR
-FILTER_SUBPATCHES = False
+FILTER_SUBPATCHES = True
 SAVE_TRAINVAL = False
 SEND_EMAIL = True
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9
-TRAINVAL_TEST_RAND_STATE = 30  # Integer from 0 to 42 (inclusive)
-TRAIN_VAL_RAND_STATE = 30  # Integer from 0 to 42 (inclusive)
+TRAINVAL_TEST_RAND_STATE = None  # Integer from 0 to 42 (inclusive). None for random
+TRAIN_VAL_RAND_STATE = None  # Integer from 0 to 42 (inclusive). None for random
 TRAIN_SIZE = 0.8
 MIN_LEARNING_RATE = 0.0001
 PREDICTION_THRESHOLD = 0.5
