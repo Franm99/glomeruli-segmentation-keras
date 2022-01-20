@@ -159,7 +159,7 @@ def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int,
 
 
 def init_email_info():
-    def_sender_email = "pythonAdvisor@gmail.com"
+    def_sender_email = "pythonAdvisor22@gmail.com"
     req = input("Use default sender ({}) [Y/n]: ".format(def_sender_email))
     if req.lower() == "y":
         sender_email = def_sender_email

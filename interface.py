@@ -221,7 +221,7 @@ class Viewer(tk.Frame):
         Method to save (global) results in a txt file for later study.
         NOTE: output file will be saved in the output directory.
         """
-        filename = os.path.join('output', self._output_folder, "test_analysis.txt")
+        filename = os.path.join(os.path.dirname(__file__), 'output', self._output_folder, "test_analysis.txt")
         with open(file=filename, mode="w") as f:
             f.write("GLOMERULI COUNT: {}\n".format(str(self.gt_glomeruli_counter)))
             f.write("TRUE POSITIVES: {}\n".format(self.global_true_positives.get()))
@@ -271,7 +271,7 @@ class Viewer(tk.Frame):
         Load test prediction masks from the specified folder.
         :return: (filenames list, numpy array images list)
         """
-        dir_path = os.path.join('output', self._output_folder, 'test_pred')
+        dir_path = os.path.join(os.path.dirname(__file__), 'output', self._output_folder, 'test_pred')
         test_pred_list = glob(dir_path + '/*')
         pred_ims_np = [cv2.imread(i, cv2.IMREAD_COLOR) for i in test_pred_list]
         test_pred_names = [os.path.basename(i) for i in test_pred_list]
