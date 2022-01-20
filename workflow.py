@@ -22,6 +22,8 @@ from unet_model import unet_model
 from utils import get_data_from_xml, print_info, MaskType, init_email_info
 import smtplib
 import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import time
 
 if params.SEND_EMAIL:
@@ -360,11 +362,30 @@ class WorkFlow:
 
     @staticmethod
     def send_log_email(t: float):
+        """
+        Send informative email to know when a training process has finished. Time spent is specified.
+        :param t: time spent (in seconds). Preferably, give HH:MM:SS format to improve readability.
+        :return: None
+        """
+        time_mark = time.strftime("%H:%M:%S", time.gmtime(t))
         port = 465  # for SSL
-        message = """\
-        Subject: Training finished
-        
-        Time spent: {:2.4f}""".format(t)
+        message = MIMEMultipart("alternative")
+        message["Subject"] = "Training finished"
+        message["From"] = sender_email
+        message["To"] = receiver_email
+
+        html = """\
+        <html>
+            <body>
+                One training finished.<br>
+                Time spent: {} (h:m:s)<br>
+            </body>
+        </html>
+        """.format(time_mark)
+
+        part1 = MIMEText(html, "html")
+        message.attach(part1)
+
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
             server.login(sender_email, password)
