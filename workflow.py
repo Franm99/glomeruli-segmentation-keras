@@ -24,6 +24,8 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 import time
 
 if params.SEND_EMAIL:
@@ -106,6 +108,7 @@ class WorkFlow:
                 print_info("LAUNCHING TRAINING PROCESS:")
                 history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
                                     validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
+
                 print_info("TRAINING PROCESS FINISHED.")
                 wfile = self.weights_path + '/model.hdf5'
                 print_info("Saving weights to: {}".format(wfile))
@@ -125,11 +128,11 @@ class WorkFlow:
                 test_names = dataset.get_data_list(set="test")
                 count_ptg = self.count_segmented_glomeruli(test_predictions, test_names)
                 print_info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
-                self.save_train_log(history, iou_score, count_ptg, staining, resize_ratio)
+                log_file_name = self.save_train_log(history, iou_score, count_ptg, staining, resize_ratio)
                 # When a test ends, clear the model to avoid influence in next ones.
                 del model
                 exec_time = time.time() - ts
-                self.send_log_email(exec_time)
+                self.send_log_email(exec_time, log_file_name)
 
     def _prepare_output(self):
         """
@@ -327,7 +330,7 @@ class WorkFlow:
             plt.savefig(val_pred_path)
             plt.close()
 
-    def save_train_log(self, history, iou_score, count_ptg, staining, resize_ratio):
+    def save_train_log(self, history, iou_score, count_ptg, staining, resize_ratio) -> str:
         log_fname = os.path.join(self.output_folder_path, time.strftime("%Y%m%d-%H%M%S") + '.txt')
         with open(log_fname, 'w') as f:
             # Write parameters used
@@ -359,9 +362,10 @@ class WorkFlow:
             # write testing results
             f.write('TESTING RESULTS\n')
             f.write('APROX_GLOMERULI_HIT_PERCENTAGE={}\n'.format(count_ptg))
+        return log_fname
 
     @staticmethod
-    def send_log_email(t: float):
+    def send_log_email(t: float, fname: str):
         """
         Send informative email to know when a training process has finished. Time spent is specified.
         :param t: time spent (in seconds). Preferably, give HH:MM:SS format to improve readability.
@@ -377,7 +381,7 @@ class WorkFlow:
         html = """\
         <html>
             <body>
-                One training finished.<br>
+                Training finished. For further info, check log file.<br>
                 Time spent: {} (h:m:s)<br>
             </body>
         </html>
@@ -385,6 +389,17 @@ class WorkFlow:
 
         part1 = MIMEText(html, "html")
         message.attach(part1)
+
+        # Attach log file
+        with open(fname, "rb") as att:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(att.read())
+
+        encoders.encode_base64(part)
+        part.add_header("Content-disposition",
+                        f"attachment; filename= {os.path.basename(fname)}")
+
+        message.attach(part)
 
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:

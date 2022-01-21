@@ -47,6 +47,7 @@ class Viewer(tk.Frame):
         self.global_false_positives = tk.StringVar()
         self.accuracy = tk.StringVar()
         self.precision = tk.StringVar()
+        self.progress = tk.StringVar()
 
         self.gt_glomeruli_counter = 0
         self.pred_glomeruli_counter = 0
@@ -90,6 +91,9 @@ class Viewer(tk.Frame):
         self.buttonSave = tk.Button(self, text="Save", command=self.cb_save_results, font="Arial 12",
                                     height=3, width=10, background="#595959", foreground="#F2F2F2")
         self.buttonSave.grid(row=14, column=4, sticky="e", padx=10, pady=10)
+
+        self.lblProgress = tk.Label(self, textvariable=self.progress, font="Arial 10")
+        self.lblProgress.grid(row=14, column=2, padx=10, pady=10)
 
         # Text panel
         ttk.Separator(self, orient=tk.VERTICAL).grid(column=5, row=0, rowspan=15, sticky='ns')
@@ -150,6 +154,7 @@ class Viewer(tk.Frame):
         Update both canvas and local values
         """
         self.show_images()
+        self.progress.set("{}/{}".format(self.idx+1, len(self.ims)))
 
         # Update text variables
         self.local_true_positives.set(str(self.TP_list[self.idx]))
@@ -173,6 +178,7 @@ class Viewer(tk.Frame):
         self.FN = self.gt_glomeruli_counter
         self.accuracy.set(str(0))
         self.precision.set(str(0))
+        self.progress.set("{}/{}".format(self.idx+1, len(self.ims)))
 
     def cb_add_true_positive(self, event):
         """
