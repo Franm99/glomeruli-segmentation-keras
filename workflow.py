@@ -28,6 +28,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 import time
 import logging
+from sklearn.utils.class_weight import compute_class_weight
 
 if params.SEND_EMAIL:
     sender_email, password, receiver_email = init_email_info()
@@ -74,6 +75,8 @@ class WorkFlow:
             else:
                 self._masks_path = params.DATASET_PATH + '/gt/bboxes'
 
+        self.class_values = np.asarray([0, 1])
+
     def run(self, resize_ratios: List[int], stainings: List[str]):
         """ Method to execute the test bench. Sequentially, the following steps will be executed:
         1. Initialize path where output files will be saved.
@@ -98,6 +101,8 @@ class WorkFlow:
                                   mask_size=self._mask_size, mask_simplex=self._mask_simplex)
                 xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset, resize_ratio)
 
+                class_weights = self.get_class_weights(ytrain)
+                print(class_weights)
 
                 self.logger.info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
                 model, callbacks = self._prepare_model()
@@ -108,8 +113,14 @@ class WorkFlow:
                 self.logger.info("Batch size: {}".format(params.BATCH_SIZE))
                 self.logger.info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
                 self.logger.info("LAUNCHING TRAINING PROCESS:")
-                history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
-                                    validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
+                history = model.fit(xtrain, ytrain,
+                                    batch_size=params.BATCH_SIZE,
+                                    epochs=params.EPOCHS,
+                                    validation_data=(xval, yval),
+                                    class_weight=class_weights,
+                                    callbacks = callbacks,
+                                    shuffle=False,
+                                    verbose=1)
 
                 self.logger.info("TRAINING PROCESS FINISHED.")
                 wfile = self.weights_path + '/model.hdf5'
@@ -188,7 +199,6 @@ class WorkFlow:
                                                           filter_spatches=params.FILTER_SUBPATCHES)
 
         # self.logger.info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
-
         self.logger.info("Second split: Training & Validation split:")
         xtrain, xval, ytrain, yval = dataset.split_train_val(patches_ims, patches_masks)
 
@@ -201,6 +211,9 @@ class WorkFlow:
         xtrain_tensor, ytrain_tensor = self._normalize(xtrain, ytrain)
         xval_tensor, yval_tensor = self._normalize(xval, yval)
         return xtrain_tensor, xval_tensor, xtest_list, ytrain_tensor, yval_tensor, ytest_list
+
+    def get_class_weights(self, ytrain):
+        return compute_class_weight('balanced', classes=self.class_values, y=ytrain.flatten())
 
     def _prepare_model(self):
         model = get_model()
