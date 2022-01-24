@@ -147,8 +147,8 @@ class Dataset():
                             continue
                     patch = np.asarray(
                         Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
-                    patch_mask = np.asarray(
-                        Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                    patch_mask = self.binarize(np.asarray(
+                        Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE))))
                     patches.append(patch)
                     patches_masks.append(patch_mask)
 
@@ -188,6 +188,11 @@ class Dataset():
         :return: True if patch contains tissue, False if not.
         """
         return np.sum(patch) > 0
+
+    @staticmethod
+    def binarize(im):
+        th = 200
+        return 255 * (im > th)
 
     # def _save_train_dataset(self, ims: List[np.ndarray], masks: List[np.ndarray], output_folder: str) -> List[str]:
     #     """
