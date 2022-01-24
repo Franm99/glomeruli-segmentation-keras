@@ -19,7 +19,7 @@ from tensorflow.keras.utils import normalize
 from tqdm import tqdm
 from typing import List, Optional, Tuple
 from unet_model import unet_model
-from utils import get_data_from_xml, print_info, MaskType, init_email_info
+from utils import get_data_from_xml, MaskType, init_email_info
 import smtplib
 import ssl
 from email.mime.text import MIMEText
@@ -27,6 +27,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 import time
+import logging
 
 if params.SEND_EMAIL:
     sender_email, password, receiver_email = init_email_info()
@@ -85,56 +86,57 @@ class WorkFlow:
         """
         for staining in stainings:
             for resize_ratio in resize_ratios:
-                print_info("########## CONFIGURATION ##########")
-                print_info("Staining:       {}".format(staining))
-                print_info("Resize ratio:   {}".format(resize_ratio))
-                self._prepare_output()
+                self.logger = self._prepare_output()
+
+                self.logger.info("########## CONFIGURATION ##########")
+                self.logger.info("Staining:       {}".format(staining))
+                self.logger.info("Resize ratio:   {}".format(resize_ratio))
 
                 ts = time.time()
-                print_info("########## PREPARE DATASET ##########")
+                self.logger.info("########## PREPARE DATASET ##########")
                 dataset = Dataset(staining=staining, mask_type=params.MASK_TYPE,
                                   mask_size=self._mask_size, mask_simplex=self._mask_simplex)
                 xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset, resize_ratio)
 
 
-                print_info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
+                self.logger.info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
                 model, callbacks = self._prepare_model()
 
                 # 3. TRAINING AND VALIDATION STAGE
-                print_info("########## TRAINING AND VALIDATION STAGE ##########")
-                print_info("Num epochs: {}".format(params.EPOCHS))
-                print_info("Batch size: {}".format(params.BATCH_SIZE))
-                print_info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
-                print_info("LAUNCHING TRAINING PROCESS:")
+                self.logger.info("########## TRAINING AND VALIDATION STAGE ##########")
+                self.logger.info("Num epochs: {}".format(params.EPOCHS))
+                self.logger.info("Batch size: {}".format(params.BATCH_SIZE))
+                self.logger.info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
+                self.logger.info("LAUNCHING TRAINING PROCESS:")
                 history = model.fit(xtrain, ytrain, batch_size=params.BATCH_SIZE, verbose=1, epochs=params.EPOCHS,
                                     validation_data=(xval, yval), shuffle=False, callbacks=callbacks)
 
-                print_info("TRAINING PROCESS FINISHED.")
+                self.logger.info("TRAINING PROCESS FINISHED.")
                 wfile = self.weights_path + '/model.hdf5'
-                print_info("Saving weights to: {}".format(wfile))
+                self.logger.info("Saving weights to: {}".format(wfile))
                 model.save(wfile)
-                print_info("Saving loss and accuracy results collected over epochs.")
+                self.logger.info("Saving loss and accuracy results collected over epochs.")
                 self._save_results(history)
                 iou_score = self.compute_IoU(xval, yval, model, th=params.PREDICTION_THRESHOLD)
-                print_info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
+                self.logger.info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
                                                                                             iou_score))
-                print_info("Saving validation predictions (patches) to disk.")
+                self.logger.info("Saving validation predictions (patches) to disk.")
                 self._save_val_predictions(xval, yval, model)
 
                 # 4. TESTING STAGE
-                print_info("########## TESTING STAGE ##########")
-                print_info("Computing predictions for testing set:")
+                self.logger.info("########## TESTING STAGE ##########")
+                self.logger.info("Computing predictions for testing set:")
                 test_predictions = self._prepare_test(xtest, dataset.test_list, model, resize_ratio)  # Test predictions
                 test_names = dataset.get_data_list(set="test")
                 count_ptg = self.count_segmented_glomeruli(test_predictions, test_names)
-                print_info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
+                self.logger.info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
                 log_file_name = self.save_train_log(history, iou_score, count_ptg, staining, resize_ratio)
                 # When a test ends, clear the model to avoid influence in next ones.
                 del model
                 exec_time = time.time() - ts
                 self.send_log_email(exec_time, log_file_name)
 
-    def _prepare_output(self):
+    def _prepare_output(self) -> logging.Logger:
         """
         Initialize directory where output files will be saved for an specific test bench execution.
         :return: None
@@ -160,27 +162,34 @@ class WorkFlow:
         self.patches_val_path = os.path.join(self.output_folder_path, 'patches_val')
         os.mkdir(self.patches_val_path)
 
+        # Create logger for saving console info
+        logging.basicConfig(filename=os.path.join(self.output_folder_path, "console.log"),
+                            format='[%(levelname)s]: %(message)s',
+                            level=logging.DEBUG)
+        logger = logging.getLogger(__name__)
+        return logger
+
     def _prepare_data(self, dataset: Dataset, resize_ratio: int) -> Tuple:
-        print_info("First split: Training+Validation & Testing split:")
+        self.logger.info("First split: Training+Validation & Testing split:")
         xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
         self.list2txt(os.path.join(self.output_folder_path, 'test_list.txt'), [os.path.basename(i) for i in xtest_p])
 
-        print_info("LOADING DATA FROM DISK FOR PROCEEDING TO TRAINING AND TEST:")
-        print_info("Loading images from: {}".format(self._ims_path))
-        print_info("Loading masks from: {}".format(self._masks_path))
-        print_info("Training and Validation:")
+        self.logger.info("LOADING DATA FROM DISK FOR PROCEEDING TO TRAINING AND TEST:")
+        self.logger.info("Loading images from: {}".format(self._ims_path))
+        self.logger.info("Loading masks from: {}".format(self._masks_path))
+        self.logger.info("Training and Validation:")
         ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=self._limit_samples)
 
-        print_info("Testing:")
+        self.logger.info("Testing:")
         xtest_list, ytest_list = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
 
-        print_info("DATA PREPROCESSING FOR TRAINING.")
+        self.logger.info("DATA PREPROCESSING FOR TRAINING.")
         patches_ims, patches_masks = dataset.get_spatches(ims, masks, rz_ratio=resize_ratio,
                                                           filter_spatches=params.FILTER_SUBPATCHES)
 
-        # print_info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
+        # self.logger.info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
 
-        print_info("Second split: Training & Validation split:")
+        self.logger.info("Second split: Training & Validation split:")
         xtrain, xval, ytrain, yval = dataset.split_train_val(patches_ims, patches_masks)
 
         if params.SAVE_TRAINVAL:
@@ -212,11 +221,11 @@ class WorkFlow:
             reducelr_cb = cb.ReduceLROnPlateau(monitor='val_loss', patience=params.REDUCELR_PATIENCE)
             callbacks.append(reducelr_cb)
 
-        print_info("Model callback functions for training:")
-        print_info("Checkpointer:       {}".format("Y"))
-        print_info("EarlyStopper:       {}".format("Y"))
-        print_info("TensorBoard logger: {}".format("Y" if params.SAVE_TRAIN_LOGS else "N"))
-        print_info("CSV file logger:    {}".format("Y" if params.SAVE_TRAIN_LOGS else "N"))
+        self.logger.info("Model callback functions for training:")
+        self.logger.info("Checkpointer:       {}".format("Y"))
+        self.logger.info("EarlyStopper:       {}".format("Y"))
+        self.logger.info("TensorBoard logger: {}".format("Y" if params.SAVE_TRAIN_LOGS else "N"))
+        self.logger.info("CSV file logger:    {}".format("Y" if params.SAVE_TRAIN_LOGS else "N"))
         return model, callbacks
 
     def _prepare_test(self, ims, ims_names, model, resize_ratio):
@@ -299,9 +308,9 @@ class WorkFlow:
         # plt.ylabel("MeanIoU")
         # plt.legend()
         # plt.savefig(os.path.join(self.output_folder_path, "mean_iou.png"))
-        print_info("You can check the training and validation results during epochs in:")
-        print_info("- {}".format(os.path.join(self.output_folder_path, "loss.png")))
-        # print_info("- {}".format(os.path.join(self.output_folder_path, "acc.png")))
+        self.logger.info("You can check the training and validation results during epochs in:")
+        self.logger.info("- {}".format(os.path.join(self.output_folder_path, "loss.png")))
+        # self.logger.info("- {}".format(os.path.join(self.output_folder_path, "acc.png")))
 
     def compute_IoU(self, xtest, ytest, model, th: float = params.PREDICTION_THRESHOLD):
         ypred = model.predict(xtest)
@@ -407,8 +416,7 @@ class WorkFlow:
             server.sendmail(sender_email, receiver_email, message.as_string())
 
 
-    @staticmethod
-    def _save_spatches(x: List[np.ndarray], y: List[np.ndarray], dir_path: str):
+    def _save_spatches(self, x: List[np.ndarray], y: List[np.ndarray], dir_path: str):
         ims_path = os.path.join(dir_path, "ims")
         os.mkdir(ims_path)
         masks_path = os.path.join(dir_path, "masks")
@@ -416,7 +424,7 @@ class WorkFlow:
 
         max_num = len(str(len(x))) + 1
         names = []
-        print_info("Savinng images and masks: {}".format(dir_path))
+        self.logger.info("Savinng images and masks: {}".format(dir_path))
         for idx, (im, mask) in tqdm(enumerate(zip(x, y)), total=len(x), desc="Saving images"):
             bname = str(idx).zfill(max_num) + ".png"
             names.append(bname)
