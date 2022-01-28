@@ -1,13 +1,16 @@
 """ Data generator class to progressively load data to RAM """
 import parameters as params
 import tensorflow as tf
-from tensorflow.keras.utils import Sequence
+from tensorflow.keras.utils import Sequence, normalize
 from typing import List, Tuple
 import numpy as np
 import cv2.cv2 as cv2
+from PIL import Image
+from abc import ABC, abstractmethod
+from utils import DataGenerator
 
 
-class DataGeneratorImages(Sequence):
+class DataGeneratorImages(DataGenerator):
     """ Data generator class to load images and masks pairs in grayscale format. """
     def __init__(self,
                  ims_list: List[str],
@@ -61,12 +64,12 @@ class DataGeneratorImages(Sequence):
         return X, y
 
 
-class DataGeneratorPatches(Sequence):
+class DataGeneratorPatches(DataGenerator):
     """ Data Generator to load patches from memory to a Tensor format. """
     def __init__(self,
                  ims_list: List[str],
                  masks_list: List[str],
-                 dims: Tuple[int, int],
+                 dims: Tuple[int, int] = (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE),
                  batch_size: int = params.BATCH_SIZE,
                  shuffle: bool = True,
                  n_channels: int = 1):
@@ -113,9 +116,80 @@ class DataGeneratorPatches(Sequence):
         # Generate data
         for i, (im_name, mask_name) in enumerate(zip(ims_list_temp, masks_list_temp)):
             # Load sample
-            X[i, :, :, 0] = cv2.imread(im_name, cv2.IMREAD_GRAYSCALE)
-            y[i, :, :, 0] = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
+            im_tensor, mask_tensor = self._normalize_sample(cv2.imread(im_name, cv2.IMREAD_GRAYSCALE),
+                                                            cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE))
+            X[i] = im_tensor
+            y[i] = mask_tensor
+
         return X, y
+
+    def _normalize_sample(self, im: np.ndarray, mask: np.ndarray) -> Tuple:
+        im_tensor = np.expand_dims(normalize(np.array(im), axis=1), 2)
+        mask_tensor = np.expand_dims(mask, 2) / 255
+        return im_tensor, mask_tensor
+
+
+class PatchGenerator:
+    def __init__(self,
+                 patch_dim: int,
+                 squared_dim: int,
+                 filter: bool = True):
+        self.patch_dim = patch_dim
+        self.filter = filter
+
+        self.batch_counter = 0
+        self.global_counter = 0
+        self.basename_length = 8
+
+    def generate(self, ims: List[np.ndarray], masks: List[np.ndarray]):
+        # TODO Why patches seems to be almost duplicated?
+        patches = list()
+        patches_masks = list()
+        for im, mask in zip(ims, masks):
+            h, w = im.shape
+            for x in range(0, w, self.patch_dim):
+                if x + self.patch_dim >= w:
+                    x = w - self.patch_dim
+                for y in range(0, h, self.patch_dim):
+                    if y + self.patch_dim >= h:
+                        y = h - self.patch_dim
+                    patch_arr = im[y: y + self.patch_dim, x: x + self.patch_dim]
+                    mask_arr = mask[y: y + self.patch_dim, x: x + self.patch_dim]
+                    # TODO: Add balancing stage when no filtering is used.
+                    if self.filter:
+                        if not self._include_patch(mask_arr):
+                            continue
+                    patch = np.asarray(
+                        Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                    patch_mask = self.binarize(np.asarray(
+                        Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE))))
+                    patches.append(patch)
+                    patches_masks.append(patch_mask)
+        self.batch_counter = len(patches)
+        self.global_counter += self.batch_counter
+        return patches, patches_masks, self._generate_names()
+
+    def _generate_names(self):
+        limits = (self.global_counter - self.batch_counter, self.global_counter)
+        names = list()
+        for i in range(limits[0], limits[1]):
+            bname = str(i).zfill(self.basename_length) + ".png"
+            names.append(bname)
+        return names
+
+    @staticmethod
+    def _include_patch(mask) -> bool:
+        """
+        Patch filter based on median value from ordered histogram to find patches containing kidney tissue.
+        :param mask: patch to check up.
+        :return: True if patch contains tissue, False if not.
+        """
+        return np.sum(mask) > 0
+
+    @staticmethod
+    def binarize(im):
+        th = 200
+        return 255 * (im > th)
 
 
 def debugger():
@@ -124,10 +198,8 @@ def debugger():
     # Prepare lists of images and masks
     im_list = glob(params.DATASET_PATH + '/ims/*')
     masks_list = glob(params.DATASET_PATH + '/gt/masks/*')
+    dg = DataGeneratorImages(im_list, masks_list)
 
-    dataGen = DataGeneratorImages(im_list, masks_list)
-    print(len(dataGen))
-    print(dataGen[0])
 
 
 # TESTING

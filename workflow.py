@@ -5,7 +5,7 @@ Redirect prints to a log file filtering just those with the "info", "warn" and "
 
 import cv2.cv2 as cv2
 import matplotlib
-matplotlib.use('Agg')  # Uncomment when working with SSH and background processes!
+# matplotlib.use('Agg')  # Uncomment when working with SSH and background processes!
 import keras
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,12 +14,13 @@ import parameters as params
 import random
 import tensorflow.keras.callbacks as cb
 from time import time
-from dataset import Dataset
+from dataset import Dataset, DatasetImages, DatasetPatches, TestDataset
+from dataGenerator import DataGeneratorImages, DataGeneratorPatches, PatchGenerator
 from tensorflow.keras.utils import normalize
 from tqdm import tqdm
 from typing import List, Optional, Tuple
 from unet_model import unet_model
-from utils import get_data_from_xml, MaskType, init_email_info
+from utils import get_data_from_xml, MaskType, init_email_info, timer
 import smtplib
 import ssl
 from email.mime.text import MIMEText
@@ -75,7 +76,116 @@ class WorkFlow:
             else:
                 self._masks_path = params.DATASET_PATH + '/gt/bboxes'
 
-        self.class_values = np.asarray([0, 1])
+        self.staining = None
+        self.resize_ratio = None
+
+    def start(self, resize_ratios: List[int], stainings: List[str]):
+        for staining in stainings:
+            for resize_ratio in resize_ratios:
+                self.staining, self.resize_ratio = staining, resize_ratio
+                self.patch_dim = params.UNET_INPUT_SIZE * self.resize_ratio
+                self.train()
+
+    @timer
+    def train(self):
+        self.logger = self._prepare_output()
+        self.logger.info("########## CONFIGURATION ##########")
+        self.logger.info("Staining:       {}".format(self.staining))
+        self.logger.info("Resize ratio:   {}".format(self.resize_ratio))
+
+        self.logger.info("########## PREPARE DATASET ##########")
+        datasetIms = DatasetImages(self.staining)
+        xtrainval, xtest, ytrainval, ytest = datasetIms.split_train_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
+        self.logger.info("{} images for Train-Validation and {} for Testing".format(len(xtrainval), len(xtest)))
+
+        # Use generator for train+val images to avoid RAM excessive usage
+        dataGenImages = DataGeneratorImages(xtrainval, ytrainval, shuffle=False)
+
+        patchGenerator = PatchGenerator(patch_dim=self.patch_dim,
+                                        squared_dim=params.UNET_INPUT_SIZE,
+                                        filter=params.FILTER_SUBPATCHES)
+
+        for ims_batch, masks_batch in dataGenImages:
+            patches, patches_masks, patches_names = patchGenerator.generate(ims_batch, masks_batch)
+            self.save_imgs_list(self.patches_tmp_path, patches, patches_names)
+            self.save_imgs_list(self.patches_masks_tmp_path, patches_masks, patches_names)
+
+        datasetPatches = DatasetPatches(self.tmp_folder)
+        dataGenPatches = DataGeneratorPatches(datasetPatches.patches_list, datasetPatches.patches_masks_list)
+
+        self.logger.info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
+        self.model, callbacks = self._prepare_model()
+
+        # 3. TRAINING AND VALIDATION STAGE
+        self.logger.info("########## TRAINING AND VALIDATION STAGE ##########")
+        self.logger.info("Num epochs: {}".format(params.EPOCHS))
+        self.logger.info("Batch size: {}".format(params.BATCH_SIZE))
+        self.logger.info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
+        self.logger.info("LAUNCHING TRAINING PROCESS:")
+
+        history = self.model.fit(dataGenPatches, epochs=params.EPOCHS, shuffle=False, verbose=1)
+
+        self.logger.info("TRAINING PROCESS FINISHED.")
+        wfile = self.weights_path + '/model.hdf5'
+        self.logger.info("Saving weights to: {}".format(wfile))
+        self.model.save(wfile)
+        self.logger.info("Saving loss and accuracy results collected over epochs.")
+        self._save_results(history)
+
+        if params.CLEAR_DATA:
+            datasetPatches.clear()
+
+        # 4. TESTING STAGE
+        self.logger.info("########## TESTING STAGE ##########")
+        self.logger.info("Computing predictions for testing set:")
+        testData = TestDataset(xtest, ytest)
+        test_predictions = self.predict(testData)
+        # TODO Continue be here !!
+
+    def predict(self, test_data: TestDataset, th: float = params.PREDICTION_THRESHOLD):
+        predictions = []
+        for im, mask, name in test_data:
+            prediction = self._get_pred_mask(im, th)
+            predictions.append(prediction * 255)
+            im_path = os.path.join(self.test_pred_path, name)
+            cv2.imwrite(im_path, prediction)
+        return predictions
+
+    def _get_pred_mask(self, im, th):
+        [h, w] = im.shape
+        # Initializing list of masks
+        mask = np.zeros((h, w), dtype=bool)
+
+        # Loop through the whole in both dimensions
+        for x in range(0, w, self.patch_dim):
+            if x + self.patch_dim >= w:
+                x = w - self.patch_dim
+            for y in range(0, h, self.patch_dim):
+                if y + self.patch_dim >= h:
+                    y = h - self.patch_dim
+                # Get sub-patch in original size
+                patch = im[y:y + self.patch_dim, x:x + self.patch_dim]
+
+                # Median filter applied on image histogram to discard non-tissue sub-patches
+                counts, bins = np.histogram(patch.flatten(), list(range(256 + 1)))
+                counts.sort()
+                median = np.median(counts)
+                if median <= 3.:
+                    # Non-tissue sub-patches automatically get a null mask
+                    prediction_rs = np.zeros((self.patch_dim, self.patch_dim), dtype=np.uint8)
+                else:
+                    # Tissue sub-patches are fed to the U-net model for mask prediction
+                    patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE),
+                                       interpolation=cv2.INTER_AREA)
+                    patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
+                    prediction = (self.model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)
+                    prediction_rs = cv2.resize(prediction[0], (self.patch_dim, self.patch_dim),
+                                               interpolation=cv2.INTER_AREA)
+
+                    # Final mask is composed by the sub-patches masks (boolean array)
+                mask[y:y + self.patch_dim, x:x + self.patch_dim] = \
+                    np.logical_or(mask[y:y + self.patch_dim, x:x + self.patch_dim], prediction_rs.astype(bool))
+        return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
 
     def run(self, resize_ratios: List[int], stainings: List[str]):
         """ Method to execute the test bench. Sequentially, the following steps will be executed:
@@ -156,22 +266,28 @@ class WorkFlow:
         self.log_name = time.strftime("%Y-%m-%d_%H-%M-%S")
         self.output_folder_path = os.path.join(params.OUTPUT_BASENAME, self.log_name)
         os.mkdir(self.output_folder_path)
+
         # Weights saved for later usage
         self.weights_path = os.path.join(self.output_folder_path, 'weights')
         os.mkdir(self.weights_path)
+
         # Validation and test predictions might be subsequently analyzed, so they are saved into disk.
         self.val_pred_path = os.path.join(self.output_folder_path, 'val_pred')
         os.mkdir(self.val_pred_path)
         self.test_pred_path = os.path.join(self.output_folder_path, 'test_pred')
         os.mkdir(self.test_pred_path)
+
         # If a log system (Tensorboard) is used, its output can be helpful for later analysis
         self.logs_path = os.path.join(self.output_folder_path, 'logs')
         os.mkdir(self.logs_path)
+
         # With reproducibility purposes, training, validation and test sets will be saved
-        self.patches_train_path = os.path.join(self.output_folder_path, 'patches_train')
-        os.mkdir(self.patches_train_path)
-        self.patches_val_path = os.path.join(self.output_folder_path, 'patches_val')
-        os.mkdir(self.patches_val_path)
+        self.tmp_folder = os.path.join(self.output_folder_path, 'tmp')
+        os.mkdir(self.tmp_folder)
+        self.patches_tmp_path = os.path.join(self.tmp_folder, 'patches')
+        os.mkdir(self.patches_tmp_path)
+        self.patches_masks_tmp_path = os.path.join(self.tmp_folder, 'patches_masks')
+        os.mkdir(self.patches_masks_tmp_path)
 
         # Create logger for saving console info
         logging.basicConfig(filename=os.path.join(self.output_folder_path, "console.log"),
@@ -299,6 +415,18 @@ class WorkFlow:
                     counter_total += 1
                     counter += 1 if pred[cy, cx] == 1 else 0
         return counter / counter_total
+
+    @staticmethod
+    def save_imgs_list(dir_path: str, imgs_list: List[np.ndarray],
+                      names_list: List[str], full_path_names: bool = False):
+        filenames_list = list()
+        for im, name in zip(imgs_list, names_list):
+            if full_path_names:
+                filename = name
+            else:
+                filename = os.path.join(dir_path, name)
+                filenames_list.append(filename)
+            cv2.imwrite(filename=filename, img=im)
 
     def _save_results(self, history):
         loss = history.history['loss']
@@ -532,8 +660,17 @@ def testRegionprops():
     plt.show()
 
 
+def debugger():
+    workflow = WorkFlow(limit_samples=params.DEBUG_LIMIT,
+                        mask_type=params.MASK_TYPE,
+                        mask_size=params.MASK_SIZE,
+                        mask_simplex=params.APPLY_SIMPLEX)
+    workflow.start(params.RESIZE_RATIOS, params.STAININGS)
+
+
 
 if __name__ == '__main__':
-    train()
+    # train()
     # test()
     # testRegionprops()
+    debugger()
