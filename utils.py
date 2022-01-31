@@ -13,6 +13,8 @@ from tkinter import filedialog
 import os
 from skimage.measure import regionprops, label
 from getpass import getpass
+from abc import ABC, abstractmethod
+from tensorflow.keras.utils import Sequence
 
 # ---- CLASSES ----
 
@@ -28,6 +30,37 @@ class Size(Enum):  # Number of pixels for synthetic masks radii.
     BIG = 175
     MEDIUM = 150
     SMALL = 100
+
+
+class DataGenerator(ABC, Sequence):
+    @abstractmethod
+    def __init__(self,
+                 ims_list: List[str],
+                 masks_list: List[str],
+                 batch_size: int,
+                 shuffle: bool,
+                 n_channels: int):
+        self.ims_list = ims_list
+        self.masks_list = masks_list
+        self.batch_size = batch_size
+        self.n_channels = n_channels
+        self.shuffle = shuffle
+
+    @abstractmethod
+    def __len__(self):
+        pass
+
+    @abstractmethod
+    def __getitem__(self, index):
+        pass
+
+    @abstractmethod
+    def on_epoch_end(self):
+        pass
+
+    @abstractmethod
+    def _data_generation(self, ims_list_temp, masks_list_temp):
+        pass
 
 
 GlomeruliClass = {

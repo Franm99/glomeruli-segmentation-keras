@@ -16,7 +16,7 @@ TEST_MASKS_PATH = DATASET_PATH + '/train_val/patches_masks'
 PATCH_SIZE = (3200, 3200)
 UNET_INPUT_SIZE = 256
 STAININGS = ['HE']
-RESIZE_RATIOS = [4, 4, 4, 3, 3, 3, 2, 2, 2]
+RESIZE_RATIOS = [4]
 
 # Model parameters
 LEARNING_RATE = 0.001
@@ -32,7 +32,8 @@ MASK_TYPE = MaskType.HANDCRAFTED
 # MASK_TYPE = MaskType.CIRCULAR
 FILTER_SUBPATCHES = True
 SAVE_TRAINVAL = False
-SEND_EMAIL = True
+SEND_EMAIL = False
+CLEAR_DATA = True
 
 # Training parameters and hyper-parameters
 TRAINVAL_TEST_SPLIT_RATE = 0.9
@@ -41,7 +42,7 @@ TRAIN_VAL_RAND_STATE = None  # Integer from 0 to 42 (inclusive). None for random
 TRAIN_SIZE = 0.8
 MIN_LEARNING_RATE = 0.0001
 PREDICTION_THRESHOLD = 0.5
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 EPOCHS = 100
 
 # Model callbacks configuration

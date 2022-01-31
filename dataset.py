@@ -12,6 +12,56 @@ from tensorflow.keras.utils import normalize
 from tqdm import tqdm
 from typing import Optional, List, Tuple
 from utils import print_info, print_warn, print_error, timer, MaskType
+from shutil import rmtree
+
+
+class DatasetImages:
+    def __init__(self, staining: str):
+        self._ims_path = os.path.join(params.DATASET_PATH, 'ims')
+        self._masks_path = os.path.join(params.DATASET_PATH, 'gt/masks')
+
+        self.ims_names = [i[:-4] for i in os.listdir(self._ims_path)]
+        self.ims_list = [os.path.join(self._ims_path, f'{i}.png') for i in self.ims_names]
+
+        self.ims_list = [i for i in glob.glob(self._ims_path + '/*') if staining in os.path.basename(i)]
+        self.masks_list = [os.path.join(self._masks_path, os.path.basename(i)) for i in self.ims_list]
+
+    def split_train_test(self, train_size: float):
+        return train_test_split(self.ims_list, self.masks_list, train_size=train_size,
+                                shuffle=True, random_state=params.TRAINVAL_TEST_RAND_STATE)
+
+
+class DatasetPatches:
+    def __init__(self, dir_path: str):
+        self._dir_path = dir_path
+        self._dir_patches = os.path.join(self._dir_path, 'patches')
+        self._dir_patches_masks = os.path.join(self._dir_path, 'patches_masks')
+
+        self.patches_list = glob.glob(self._dir_patches + '/*')
+        self.patches_masks_list = glob.glob(self._dir_patches_masks + '/*')
+
+    def clear(self):
+        try:
+            rmtree(self._dir_path)
+        except:
+            print("Failed to delete tmp directory.")
+
+
+class TestDataset:
+    def __init__(self, ims_files: List[str], masks_files: List[str]):
+        self.ims_files = ims_files
+        self.masks_files = masks_files
+        self.ims_names = [os.path.basename(i) for i in self.ims_files]
+
+    def __getitem__(self, idx):
+        return self._load(self.ims_files[idx]), self._load(self.masks_files[idx]), self.ims_names[idx]
+
+    def __len__(self):
+        return len(self.ims_files)
+
+    @staticmethod
+    def _load(im):
+        return cv2.imread(im, cv2.IMREAD_GRAYSCALE)
 
 
 class Dataset():
@@ -283,6 +333,20 @@ class Dataset():
 #     print(x_t.shape, y_t.shape)
 #     xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
 #     print(xtrain.shape, xval.shape)
+
+def debugging():
+    import glob
+    im_list = glob.glob(params.DATASET_PATH + '/ims/*')[:10]
+    masks_list = glob.glob(params.DATASET_PATH + '/gt/masks/*')[:10]
+    testDataset = TestDataset(im_list, masks_list)
+    for im, mask, name in testDataset:
+        print(im)
+        print(mask)
+        print(name)
+
+
+if __name__ == '__main__':
+    debugging()
 
 
 
