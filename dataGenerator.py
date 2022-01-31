@@ -44,7 +44,7 @@ class DataGeneratorImages(DataGenerator):
         ims_list_temp = [self.ims_list[k] for k in indexes]
         masks_list_temp = [self.masks_list[k] for k in indexes]
 
-        return self.__data_generation(ims_list_temp, masks_list_temp)
+        return self._data_generation(ims_list_temp, masks_list_temp)
 
     def on_epoch_end(self):
         """ Updates indexes after each epoch """
@@ -52,7 +52,7 @@ class DataGeneratorImages(DataGenerator):
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
-    def __data_generation(self, ims_list_temp, masks_list_temp):
+    def _data_generation(self, ims_list_temp, masks_list_temp):
         """ This Data Generator class loads images and masks in a basic format: numpy arrays with shape (w, h). """
         X = list()
         y = list()
@@ -101,7 +101,7 @@ class DataGeneratorPatches(DataGenerator):
         ims_list_temp = [self.ims_list[k] for k in indexes]
         masks_list_temp = [self.masks_list[k] for k in indexes]
 
-        return self.__data_generation(ims_list_temp, masks_list_temp)
+        return self._data_generation(ims_list_temp, masks_list_temp)
 
     def on_epoch_end(self):
         """ Updates indexes after each epoch """
@@ -109,7 +109,7 @@ class DataGeneratorPatches(DataGenerator):
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
-    def __data_generation(self, ims_list_temp, masks_list_temp):
+    def _data_generation(self, ims_list_temp, masks_list_temp):
         X = np.empty((self.batch_size, *self.dims, self.n_channels))
         y = np.empty((self.batch_size, *self.dims, self.n_channels))
 

@@ -86,8 +86,9 @@ class WorkFlow:
                 self.patch_dim = params.UNET_INPUT_SIZE * self.resize_ratio
                 self.train()
 
-    @timer
     def train(self):
+        ts = time.time()
+        """ Execute the training stage """
         self.logger = self._prepare_output()
         self.logger.info("########## CONFIGURATION ##########")
         self.logger.info("Staining:       {}".format(self.staining))
@@ -100,17 +101,22 @@ class WorkFlow:
 
         # Use generator for train+val images to avoid RAM excessive usage
         dataGenImages = DataGeneratorImages(xtrainval, ytrainval, shuffle=False)
+        self.logger.info("Data generator for images: {} batches.".format(len(dataGenImages)))
 
+        # PatchGenerator object can be reused for each images batch.
         patchGenerator = PatchGenerator(patch_dim=self.patch_dim,
                                         squared_dim=params.UNET_INPUT_SIZE,
                                         filter=params.FILTER_SUBPATCHES)
 
-        for ims_batch, masks_batch in dataGenImages:
+        # Patches are saved in a tmp directory, so a new DataGenerator can be set up for the training stage.
+        # Once the iteraton finishes, the tmp directory is deleted to avoid unnecessary memory usage.
+        for ims_batch, masks_batch in tqdm(dataGenImages, desc="Getting patches from image batches"):
             patches, patches_masks, patches_names = patchGenerator.generate(ims_batch, masks_batch)
             self.save_imgs_list(self.patches_tmp_path, patches, patches_names)
             self.save_imgs_list(self.patches_masks_tmp_path, patches_masks, patches_names)
 
         datasetPatches = DatasetPatches(self.tmp_folder)
+        # Preparing dataset for the training stage. Patches are normalized to a (0,1) tensor format.
         dataGenPatches = DataGeneratorPatches(datasetPatches.patches_list, datasetPatches.patches_masks_list)
 
         self.logger.info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
@@ -140,7 +146,11 @@ class WorkFlow:
         self.logger.info("Computing predictions for testing set:")
         testData = TestDataset(xtest, ytest)
         test_predictions = self.predict(testData)
-        # TODO Continue be here !!
+        log_file = self.save_train_log(history)
+
+        del self.model
+        exec_time = time.time() - ts
+        self.send_log_email(exec_time, log_file)
 
     def predict(self, test_data: TestDataset, th: float = params.PREDICTION_THRESHOLD):
         predictions = []
@@ -480,14 +490,14 @@ class WorkFlow:
             plt.savefig(val_pred_path)
             plt.close()
 
-    def save_train_log(self, history, iou_score, count_ptg, staining, resize_ratio) -> str:
+    def save_train_log(self, history) -> str:
         log_fname = os.path.join(self.output_folder_path, time.strftime("%Y%m%d-%H%M%S") + '.txt')
         with open(log_fname, 'w') as f:
             # Write parameters used
             f.write("TRAINING PARAMETERS:\n")
             f.write('TRAIN_SIZE={}\n'.format(params.TRAIN_SIZE))
-            f.write('STAINING={}\n'.format(staining))
-            f.write('RESIZE_RATIO={}\n'.format(resize_ratio))
+            f.write('STAINING={}\n'.format(self.staining))
+            f.write('RESIZE_RATIO={}\n'.format(self.resize_ratio))
             f.write('PREDICTION_THRESHOLD={}\n'.format(params.PREDICTION_THRESHOLD))
             f.write('BATCH_SIZE={}\n'.format(params.BATCH_SIZE))
             f.write('EPOCHS={}\n'.format(params.EPOCHS))
@@ -500,18 +510,7 @@ class WorkFlow:
             # Write training results
             f.write('TRAINING RESULTS\n')
             loss = history.history['loss']
-            # val_loss = history.history['val_loss']
-            # acc = history.history['accuracy']
-            val_acc = history.history['val_accuracy']
             f.write('TRAINING_LOSS={}\n'.format(str(loss[-1])))
-            # f.write('VALIDATION_LOSS={}\n'.format(str(val_loss[-1])))
-            # f.write('TRAINING_ACC={}\n'.format(str(acc[-1])))
-            # f.write('VALIDATION_ACC={}\n'.format(str(val_acc[-1])))
-            f.write('IoU_VAL_SCORE={}\n'.format(iou_score))
-            f.write("--------------------------------------\n")
-            # write testing results
-            f.write('TESTING RESULTS\n')
-            f.write('APROX_GLOMERULI_HIT_PERCENTAGE={}\n'.format(count_ptg))
         return log_fname
 
     @staticmethod

@@ -59,7 +59,7 @@ class DataGenerator(ABC, Sequence):
         pass
 
     @abstractmethod
-    def __data_generation(self, ims_list_temp, masks_list_temp):
+    def _data_generation(self, ims_list_temp, masks_list_temp):
         pass
 
 
