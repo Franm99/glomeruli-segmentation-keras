@@ -7,6 +7,7 @@ Figure 1. Image sample of a renal biopsy portion, and its corresponding mask poi
 
 ## Goals
 
+---
 - [ ] Build a ML-based segmentation tool using [TF/Keras](https://www.tensorflow.org/overview) to find
 glomeruli in renal tissue [Whole-Slide Images](https://www.mbfbioscience.com/whole-slide-imaging) (WSI). 
 At least,  a hit percentage of **95%** is required.
@@ -19,6 +20,7 @@ our case study: Classic U-Net [[1]](#1), [DoubleU-Net](https://arxiv.org/pdf/200
 
 ## Application stages
 
+---
 1. Renal tissue images use to have huge dimensions, being highly not recommended to directly process them. Cutting up
 these images into "patches" is an acceptable approach to reduce time and processing costs. We implement MATLAB 
 OpenSlide library [[2]](#2) with this purpose, obtaining a set of _3200 x 3200 px_ images.
@@ -36,6 +38,11 @@ has any disease or not.
 
 
 ![im](ims/stages.svg)
+Figure 2: Application stages
+
+**NOTE:**  Stages 1 and 3 work with [OpenSlide](https://openslide.org/) to work with Whole-Slide Images. This library
+is C-native, but there exists APIs for MATLAB and Python, for instance. See the section 
+[OpenSlide for Python](#openslide).
 
 
 ## Project structure
@@ -131,6 +138,58 @@ contain information about the exact position and class of most glomeruli._
 _train_val/ - The segmentation model just works for an specific input size.
 Images and masks will be partitioned into sub-patches, and this sub-patches 
 will be saved into this directory._
+
+<h2 id="openslide">
+OpenSlide for Python
+</h2>
+
+### Installation Steps
+
+#### Windows
+
+Install OpenSlide API for Python:
+```bash
+username:~$ pip install openslide-python
+```
+
+Install [OpenSlide Source Binaries](https://openslide.org/download/), downloading the last version 
+(**Windows Binaries** section). Unzip it in your desired directory. The folder structure is showed below.
+```bash
+username:path-to-openslide-folder~$ tree 
+├───bin/
+│   ├───libopenslide-0.dll
+│   └───...
+├───include/
+│   └───openslide/
+├───lib/
+└───licenses/
+```
+Python needs to know the location of `libopenslide-0.dll` binary. It can be solved with a simple line in your Python 
+script, as mentioned in this [GitHub issue](https://github.com/openslide/openslide-python/issues/98#issuecomment-817942086).
+```python
+import os
+os.add_dll_directory('/path/to/openslide/bin')
+import openslide
+```
+
+#### Linux (Ubuntu)
+Install OpenSlide API for Python:
+```bash
+username:~$ pip install openslide-python
+```
+
+Install OpenSlide source:
+```bash
+username:~$ sudo apt-get install openslide-tools
+```
+
+Import OpenSlide to your Python script:
+```python
+import openslide
+```
+
+### OpenSlide Guide
+Check the [OpenSlide API documentation](https://openslide.org/api/python/) for Python. 
 
 
 ## References
