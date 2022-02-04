@@ -7,7 +7,7 @@ Figure 1. Image sample of a renal biopsy portion, and its corresponding mask poi
 
 ## Goals
 
----
+
 - [ ] Build a ML-based segmentation tool using [TF/Keras](https://www.tensorflow.org/overview) to find
 glomeruli in renal tissue [Whole-Slide Images](https://www.mbfbioscience.com/whole-slide-imaging) (WSI). 
 At least,  a hit percentage of **95%** is required.
@@ -18,9 +18,32 @@ contained in that image.
 our case study: Classic U-Net [[1]](#1), [DoubleU-Net](https://arxiv.org/pdf/2006.04868.pdf), [U-Net++,](https://arxiv.org/pdf/1807.10165.pdf) belong others.
 
 
+## Environment Setup
+### Creating Conda Environment
+1. Install conda on your device: installation guide for 
+[Windows](https://docs.conda.io/projects/conda/en/latest/user-guide/install/windows.html) | 
+[Linux](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html)
+By default, conda creates the _base_ environment. You can deactivate it with `conda deactivate base`
+
+2. Create a new environment specifying Python version (any Python3 version is valid).
+```bash
+username:~$ conda create --name your_env_name python=3.8
+```
+
+3. Activate the new environment. When an environment is active, it's indicated between brackets.
+```bash
+username:~$ conda activate your_env_name 
+(your_env_name) username:~$ 
+```
+### Install requirements
+4. Use pip to install the list of required modules (`requirements.txt` file).
+```bash
+(your_env_name) username:~$ pip install -r /path/to/requirements.txt
+```
+
 ## Application stages
 
----
+
 1. Renal tissue images use to have huge dimensions, being highly not recommended to directly process them. Cutting up
 these images into "patches" is an acceptable approach to reduce time and processing costs. We implement MATLAB 
 OpenSlide library [[2]](#2) with this purpose, obtaining a set of _3200 x 3200 px_ images.
@@ -47,7 +70,7 @@ is C-native, but there exists APIs for MATLAB and Python, for instance. See the 
 
 ## Project structure
 
----
+
 * `workflow.py`: main execution file. It is used to prepare, train and test de segmentation 
 model for a set of configuration parameter values. Output files are saved to the _output/_ directory,
 in a specific folder named with the execution date and time.
@@ -194,7 +217,7 @@ Check the [OpenSlide API documentation](https://openslide.org/api/python/) for P
 
 ## References
 
----
+
 <a id="1">[1]</a>
 Bhattiprolu, Sreenivas.
 Python for microscopists ([GitHub repository](https://github.com/bnsreenu/python_for_microscopists))
