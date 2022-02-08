@@ -279,7 +279,7 @@ class Viewer(tk.Frame):
         """
         dir_path = os.path.join(os.path.dirname(__file__), 'output', self._output_folder, 'test_pred')
         test_pred_list = glob(dir_path + '/*')
-        pred_ims_np = [cv2.imread(i, cv2.IMREAD_COLOR) for i in test_pred_list]
+        pred_ims_np = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in test_pred_list]
         test_pred_names = [os.path.basename(i) for i in test_pred_list]
         return test_pred_names, pred_ims_np
 
