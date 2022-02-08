@@ -5,6 +5,7 @@ import time
 from bs4 import BeautifulSoup
 from collections import OrderedDict
 from enum import Enum, auto
+from strenum import StrEnum
 from itertools import combinations
 from scipy.optimize import linprog
 from scipy.spatial import distance
@@ -17,6 +18,13 @@ from abc import ABC, abstractmethod
 from tensorflow.keras.utils import Sequence
 
 # ---- CLASSES ----
+
+
+class Staining(StrEnum):
+    HE = 'HE'
+    PAS = 'PAS'
+    PM = 'PM'
+
 
 class MaskType(Enum):
     """ Type of masks that can be used """
@@ -363,39 +371,7 @@ def check_gpu_availability():
             # Memory growth must be set before GPUs have been initialized
             print(e)
 
-#
-# # Testing xml extractor
-# if __name__ == '__main__':
-#     xml_path = "D:\\DataGlomeruli\\xml"
-#     mask_path = "D:\\DataGlomeruli\\gt\\circles"
-#     im_path = "D:\\DataGlomeruli\\ims"
-#     import os, glob, random
-#     import matplotlib.pyplot as plt
-#     import cv2.cv2 as cv2
-#
-#     i = random.randint(0, len(os.listdir(xml_path)) - 1)
-#     # i = 522
-#     # i = 10
-#     print("------", i)
-#     # xml_f = glob.glob(xml_path + '/*')[i]
-#     xml_f = xml_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.xml"
-#     # mask_f = glob.glob(mask_path + '/*')[i]
-#     mask_f = mask_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.png"
-#     # im_f = glob.glob(im_path + '/*')[i]
-#     im_f = im_path + "\\20B0012178 A 1 PAS_x2400y9600s3200.png"
-#
-#     print(xml_f)
-#     mask = cv2.cvtColor(cv2.imread(mask_f, cv2.IMREAD_GRAYSCALE), cv2.COLOR_BGR2RGB)
-#     im = cv2.cvtColor(cv2.imread(im_f, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
-#
-#     plt.figure()
-#     plt.subplot(121)
-#     plt.imshow(im)
-#     plt.subplot(122)
-#     plt.imshow(mask, cmap="gray")
-#
-#     data = get_data_from_xml(xml_f, apply_simplex=True)
-#     print(data)
-#     plt.show()
 
+if __name__ == '__main__':
+    print(Staining.HE)
 

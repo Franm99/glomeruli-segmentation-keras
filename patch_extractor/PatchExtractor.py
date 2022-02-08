@@ -10,8 +10,9 @@ import parameters as params
 import cv2.cv2 as cv2
 import numpy as np
 import random
-from typing import Tuple
+from typing import Tuple, Optional
 import re
+from utils import Staining
 
 ims_directory = os.path.join(params.DATASET_PATH, 'ims')
 masks_directory = os.path.join(params.DATASET_PATH, 'gt/masks')
@@ -19,33 +20,38 @@ out_folder = 'patches'
 if not os.path.isdir(out_folder):
     os.mkdir(out_folder)
 
+checkpoint_file = 'checkpoint.txt'
+
 
 class Interface(tk.Frame):
-    def __init__(self, ims_dir: str, masks_dir: str, rand_order: bool = False):
+    def __init__(self, ims_dir: str, masks_dir: str, staining: Optional[Staining], rand_order: bool = False):
         super().__init__()
         self.ims_dir = ims_dir
         self.masks_dir = masks_dir
         self.rand_order = rand_order
+        self.staining = ''
+        if staining:
+            self.staining = staining
 
-        ims_list = glob.glob(self.ims_dir + '/*')
-        masks_list = glob.glob(self.masks_dir + '/*')
-        print(ims_list[0], masks_list[0])
+        self.ims_list = [i for i in glob.glob(self.ims_dir + '/*') if self.staining in i]
+        self.masks_list = [i for i in glob.glob(self.masks_dir + '/*') if self.staining in i]
+        if os.path.isfile(checkpoint_file):
+            self.pop_seen_images()
+
         if self.rand_order:
-            index_shuffle = list(range(len(ims_list)))
+            index_shuffle = list(range(len(self.ims_list)))
             random.shuffle(index_shuffle)
-            ims_list = [ims_list[i] for i in index_shuffle]
-            masks_list = [masks_list[i] for i in index_shuffle]
-        self.ims_iter = iter(ims_list)
-        self.masks_iter = iter(masks_list)
+            ims_list = [self.ims_list[i] for i in index_shuffle]
+            masks_list = [self.masks_list[i] for i in index_shuffle]
+        self.ims_iter = iter(self.ims_list)
+        self.masks_iter = iter(self.masks_list)
 
-        self.num_ims = len(ims_list)
-        self.reduction_ratio = 4
+        self.num_ims = len(self.ims_list)
+        self.reduction_ratio = self.compute_reduction_ratio()
         self.patch_size = 600
         self.reduced_patch_size = self.patch_size // self.reduction_ratio
         self.canvas_w = params.PATCH_SIZE[0] // self.reduction_ratio
         self.canvas_h = params.PATCH_SIZE[1] // self.reduction_ratio
-        # self.ims_np, self.names, self.overlayed_np = self.load_ims()
-        # self.overlayed = [self.toImageTk(i) for i in self.overlayed_np]
 
         # Interface variables
         self.viewed_ims = 0
@@ -63,29 +69,35 @@ class Interface(tk.Frame):
 
     def create_widgets(self):
         """ Create, initialize and place widgets on frame. """
+        # Staining note
+        stainingNote = "Staining: {}".format(self.staining if (self.staining != '') else 'ALL')
+        tk.Label(self, text=stainingNote, font="Arial 10", anchor=tk.S).grid(column=1, row=0, pady=10)
         # Canvas
         self.canvas = tk.Canvas(self, width=self.canvas_w, height=self.canvas_h)
-        self.canvas.grid(row=0, column=0, columnspan=3, padx=20, pady=20)
+        self.canvas.grid(row=1, column=0, columnspan=3, padx=20, pady=10)
         self.canvas.bind("<Motion>", self.motion)
         self.canvas.bind("<Button-1>", self.click)
 
         # Buttons
         self.buttonNext = tk.Button(self, text=u"\u2192", command=self.cb_nextImage, font="Arial 12",
                                     height=3, width=10, background="#595959", foreground="#F2F2F2")
-        self.buttonNext.grid(row=1, column=1, rowspan=2, padx=10, pady=10)
+        self.buttonNext.grid(row=2, column=1, rowspan=2, padx=10, pady=10)
+
         guide_text = "Progress (Random)" if self.rand_order else "Progress (Ordered)"
-        tk.Label(self, text=guide_text, font="Arial 10", anchor="center").grid(column=0, row=1, pady=10, padx=10)
+        tk.Label(self, text=guide_text, font="Arial 10", anchor="center").grid(column=0, row=2, pady=10, padx=10)
         self.lblProgress = tk.Label(self, textvariable=self.progress, font="Arial 10")
-        self.lblProgress.grid(row=2, column=0, padx=10, pady=10, sticky=tk.N)
-        tk.Label(self, text="Num of images", font="Arial 10", anchor="center").grid(column=2, row=1, pady=10, padx=10)
+        self.lblProgress.grid(row=3, column=0, padx=10, pady=10, sticky=tk.N)
+        tk.Label(self, text="Num of images", font="Arial 10", anchor="center").grid(column=2, row=2, pady=10, padx=10)
         self.lblNumber = tk.Label(self, textvariable=self.total_num_patches, font="Arial 10")
-        self.lblNumber.grid(row=2, column=2, padx=10, pady=10, sticky=tk.N)
+        self.lblNumber.grid(row=3, column=2, padx=10, pady=10, sticky=tk.N)
 
     def load_im(self) -> Tuple[np.ndarray, str, PhotoImage]:
         """ Load image and mask from iterators and send to canvas in an overlayed format. """
         im_path, mask_path = next(self.ims_iter), next(self.masks_iter)
         self.viewed_ims += 1
         name = os.path.basename(im_path)
+        self.save_checkpoint(name)
+
         im = cv2.cvtColor(cv2.imread(next(self.ims_iter), cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
         mask = np.zeros((3200, 3200, 3), dtype=np.uint8)
         mask[:, :, 2] = cv2.imread(next(self.masks_iter), cv2.IMREAD_GRAYSCALE)
@@ -143,6 +155,21 @@ class Interface(tk.Frame):
         gy = int(by) + bb[3]
         return bname + '_x{}y{}s600.png'.format(gx, gy)
 
+    def compute_reduction_ratio(self):
+        for i in range(1, params.PATCH_SIZE[0]):
+            if ((params.PATCH_SIZE[0] % i) == 0) and ((params.PATCH_SIZE[0] // i) < (self.winfo_screenheight() * 3/4)):
+                return i
+
+    def save_checkpoint(self, name):
+        with open(checkpoint_file, 'a') as file:
+            file.write(f'{name}\n')
+
+    def pop_seen_images(self):
+        with open(checkpoint_file, 'r') as file:
+            seen_files = [i.strip('\n') for i in file.readlines()]
+        self.ims_list = [i for i in self.ims_list if not os.path.basename(i) in seen_files]
+        self.masks_list = [i for i in self.masks_list if not os.path.basename(i) in seen_files]
+
     @staticmethod
     def get_bbox(x, y, dim):
         """
@@ -158,57 +185,8 @@ class Interface(tk.Frame):
         y_min = y - half_dim
         return x_max, y_max, x_min, y_min
 
-# class Viewer(tk.Frame):
-#     def __init__(self, output_folder: str, masks_folder: str):
-#         # Initialize tkinter interface
-#         super().__init__()
-#         self.canvas_w, self.canvas_h = 400, 400
-#
-#         self._output_folder = output_folder
-#         self._masks_folder = os.path.join(DATASET_PATH, 'gt', masks_folder)
-#
-#         # Load images, ground-truth masks and prediction masks (in numpy array format)
-#         self.names, self.preds_np = self.load_test_predictions()
-#         self.ims_np = self.load_ims()
-#         self.masks_np = self.load_gt()
-#
-#         # Convert to PhotoImage format to display on tkinter canvas
-#         # self.preds = self.toImageTk(self.preds_np)
-#         # self.ims = self.toImageTk(self.ims_np)
-#         # self.masks = self.toImageTk(self.masks_np)
-#         self.preds = [self.toImageTk(pred) for pred in self.preds_np]
-#         self.ims = [self.toImageTk(im) for im in self.ims_np]
-#         self.masks = [self.toImageTk(mask) for mask in self.masks_np]
-#
-#         # Initialize interface variables
-#         self.idx = 0
-#         self.num_ims = len(self.names)
-#         self.local_true_positives = tk.StringVar()
-#         self.local_false_negatives = tk.StringVar()
-#         self.local_false_positives = tk.StringVar()
-#         self.glomeruli = tk.StringVar()
-#         self.global_true_positives = tk.StringVar()
-#         self.global_false_negatives = tk.StringVar()
-#         self.global_false_positives = tk.StringVar()
-#         self.accuracy = tk.StringVar()
-#         self.precision = tk.StringVar()
-#         self.progress = tk.StringVar()
-#
-#         self.gt_glomeruli_counter = 0
-#         self.pred_glomeruli_counter = 0
-#         self.TP = 0
-#         self.FP = 0
-#         self.FN = 0
-#
-#         self.TP_list = []
-#         self.FN_list = []
-#         self.FP_list = []
-#
-#         self.init_counters()
-#         self.create_widgets()
-#         self.update_interface()
 
 if __name__ == '__main__':
-    inter = Interface(ims_directory, masks_directory, rand_order=True)
+    inter = Interface(ims_directory, masks_directory, staining=Staining.HE, rand_order=True)
     inter.pack(fill="both", expand=True)
     inter.mainloop()

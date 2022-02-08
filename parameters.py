@@ -4,8 +4,8 @@ from utils import MaskType
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
 # DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
-# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
-DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
+DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+# DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 
 OUTPUT_BASENAME = 'output'
@@ -13,7 +13,7 @@ TEST_IMS_PATH = DATASET_PATH + '/train_val/patches'
 TEST_MASKS_PATH = DATASET_PATH + '/train_val/patches_masks'
 
 # Images and input for model
-PATCH_SIZE = (3200, 3200)
+PATCH_SIZE = (3200, 3200)  # TODO rename to IMG_SIZE
 UNET_INPUT_SIZE = 256
 STAININGS = ['HE']
 RESIZE_RATIOS = [4]
