@@ -16,9 +16,11 @@ from utils import Staining
 
 ## PARAMETERS ##
 staining = Staining.ALL # Select desired staining: HE, PAS, PM, None to select all of them
+DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'
+IM_SIZE = 3200
 
-ims_directory = os.path.join(params.DATASET_PATH, 'ims')
-masks_directory = os.path.join(params.DATASET_PATH, 'gt/masks')
+ims_directory = os.path.join(DATASET_PATH, 'ims')
+masks_directory = os.path.join(DATASET_PATH, 'gt/masks')
 out_folder = 'patches'
 if not os.path.isdir(out_folder):
     os.mkdir(out_folder)
@@ -51,8 +53,8 @@ class Interface(tk.Frame):
         self.reduction_ratio = self.compute_reduction_ratio()
         self.patch_size = 600
         self.reduced_patch_size = self.patch_size // self.reduction_ratio
-        self.canvas_w = params.PATCH_SIZE[0] // self.reduction_ratio
-        self.canvas_h = params.PATCH_SIZE[1] // self.reduction_ratio
+        self.canvas_w = IM_SIZE // self.reduction_ratio
+        self.canvas_h = IM_SIZE // self.reduction_ratio
 
         # Interface variables
         self.viewed_ims = 0
@@ -157,8 +159,8 @@ class Interface(tk.Frame):
         return bname + '_x{}y{}s600.png'.format(gx, gy)
 
     def compute_reduction_ratio(self):
-        for i in range(1, params.PATCH_SIZE[0]):
-            if ((params.PATCH_SIZE[0] % i) == 0) and ((params.PATCH_SIZE[0] // i) < (self.winfo_screenheight() * 3/4)):
+        for i in range(1, IM_SIZE):
+            if ((IM_SIZE % i) == 0) and ((IM_SIZE // i) < (self.winfo_screenheight() * 3/4)):
                 return i
 
     def save_checkpoint(self, name):
