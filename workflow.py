@@ -128,7 +128,7 @@ class WorkFlow:
 
         # Train - Validation split
         xtrain, xval, ytrain, yval = train_test_split(datasetPatches.patches_list, datasetPatches.patches_masks_list,
-                                                      train_size=params.TRAIN_VAL_SPLIT_RATE)
+                                                      train_size=params.TRAIN_SIZE)
         self.logger.info("Patches for training:     {}".format(len(xtrain)))
         self.logger.info("Patches for validation:   {}".format(len(xval)))
 
@@ -437,7 +437,7 @@ class WorkFlow:
 
     def count_segmented_glomeruli(self, preds, test_list):
         # TODO use handcrafted masks instead of xml files (more precise count)
-        xml_list = [os.path.join(self._xml_path, i.split('.')[0] + ".xml") for i in test_list]
+        xml_list = [os.path.join(self._xml_path, os.path.basename(i).split('.')[0] + ".xml") for i in test_list]
         counter_total = 0
         counter = 0
         for pred, xml in zip(preds, xml_list):
@@ -510,7 +510,7 @@ class WorkFlow:
             f.write('STAINING               {}\n'.format(self.staining))
             f.write('RESIZE_RATIO           {}\n'.format(self.resize_ratio))
             f.write('PREDICTION_THRESHOLD   {}\n'.format(params.PREDICTION_THRESHOLD))
-            f.write('TRAIN_VAL_SPLIT_RATE   {}\n'.format(params.TRAIN_VAL_SPLIT_RATE))
+            f.write('TRAIN_VAL_SPLIT_RATE   {}\n'.format(params.TRAIN_SIZE))
             f.write('BATCH_SIZE             {}\n'.format(params.BATCH_SIZE))
             f.write('EPOCHS                 {}\n'.format(params.EPOCHS))
             f.write('LEARNING_RATE          {}\n'.format(params.LEARNING_RATE))

@@ -9,19 +9,19 @@ DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 # Images and input for model
 STAININGS = ['HE']
-RESIZE_RATIOS = [4]
+RESIZE_RATIOS = [4, 4, 4, 3, 3, 3]
 
 # triggers
 FILTER_SUBPATCHES = True
 SAVE_TRAINVAL = False
-SEND_EMAIL = False
+SEND_EMAIL = True
 CLEAR_DATA = True
 SAVE_TRAIN_HISTORY = True
 
 # Model parameters
 LEARNING_RATE = 0.001
 BATCH_SIZE = 32
-EPOCHS = 1
+EPOCHS = 100
 
 # MONITORED_METRIC = "val_mean_io_u"
 MONITORED_METRIC = "val_loss"
