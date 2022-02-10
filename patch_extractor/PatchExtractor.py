@@ -14,6 +14,9 @@ from typing import Tuple, Optional
 import re
 from utils import Staining
 
+## PARAMETERS ##
+staining = Staining.ALL # Select desired staining: HE, PAS, PM, None to select all of them
+
 ims_directory = os.path.join(params.DATASET_PATH, 'ims')
 masks_directory = os.path.join(params.DATASET_PATH, 'gt/masks')
 out_folder = 'patches'
@@ -29,9 +32,7 @@ class Interface(tk.Frame):
         self.ims_dir = ims_dir
         self.masks_dir = masks_dir
         self.rand_order = rand_order
-        self.staining = ''
-        if staining:
-            self.staining = staining
+        self.staining = staining
 
         self.ims_list = [i for i in glob.glob(self.ims_dir + '/*') if self.staining in i]
         self.masks_list = [i for i in glob.glob(self.masks_dir + '/*') if self.staining in i]
@@ -41,8 +42,8 @@ class Interface(tk.Frame):
         if self.rand_order:
             index_shuffle = list(range(len(self.ims_list)))
             random.shuffle(index_shuffle)
-            ims_list = [self.ims_list[i] for i in index_shuffle]
-            masks_list = [self.masks_list[i] for i in index_shuffle]
+            self.ims_list = [self.ims_list[i] for i in index_shuffle]
+            self.masks_list = [self.masks_list[i] for i in index_shuffle]
         self.ims_iter = iter(self.ims_list)
         self.masks_iter = iter(self.masks_list)
 
@@ -55,13 +56,13 @@ class Interface(tk.Frame):
 
         # Interface variables
         self.viewed_ims = 0
-        self.patches_count = 0
+        self.patches_count = self.current_num_patches()
         self.rectangle = None
         self.im = None
         self.name = None
         self.bbox = None
         self.progress = tk.StringVar(value="...")
-        self.total_num_patches = tk.StringVar(value="0")
+        self.total_num_patches = tk.StringVar(value=str(self.patches_count))
 
         # Initialize interface
         self.create_widgets()
@@ -170,6 +171,9 @@ class Interface(tk.Frame):
         self.ims_list = [i for i in self.ims_list if not os.path.basename(i) in seen_files]
         self.masks_list = [i for i in self.masks_list if not os.path.basename(i) in seen_files]
 
+    def current_num_patches(self):
+        return len(os.listdir(out_folder))
+
     @staticmethod
     def get_bbox(x, y, dim):
         """
@@ -187,6 +191,6 @@ class Interface(tk.Frame):
 
 
 if __name__ == '__main__':
-    inter = Interface(ims_directory, masks_directory, staining=Staining.HE, rand_order=True)
+    inter = Interface(ims_directory, masks_directory, staining=staining, rand_order=True)
     inter.pack(fill="both", expand=True)
     inter.mainloop()

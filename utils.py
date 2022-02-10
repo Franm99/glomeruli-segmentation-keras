@@ -24,6 +24,7 @@ class Staining(StrEnum):
     HE = 'HE'
     PAS = 'PAS'
     PM = 'PM'
+    ALL = ''  # Will take all existing stainings
 
 
 class MaskType(Enum):
