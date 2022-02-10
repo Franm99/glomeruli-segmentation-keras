@@ -1,13 +1,16 @@
 """ Data generator class to progressively load data to RAM """
+import matplotlib.pyplot as plt
+
 import parameters as params
 import tensorflow as tf
-from tensorflow.keras.utils import Sequence, normalize
+from tensorflow.keras.utils import normalize
 from typing import List, Tuple
 import numpy as np
 import cv2.cv2 as cv2
 from PIL import Image
-from abc import ABC, abstractmethod
-from utils import DataGenerator
+from utils import DataGenerator, show_ims
+from sklearn.utils.class_weight import compute_class_weight
+
 
 
 class DataGeneratorImages(DataGenerator):
@@ -89,6 +92,8 @@ class DataGeneratorPatches(DataGenerator):
         self.dims = dims
         self.shuffle = shuffle
         self.on_epoch_end()
+        self.class_values = np.array([0, 1])
+        self.class_weights = np.array([1, 10])
 
     def __len__(self):
         """ Number of batches per epoch """
@@ -101,6 +106,8 @@ class DataGeneratorPatches(DataGenerator):
         ims_list_temp = [self.ims_list[k] for k in indexes]
         masks_list_temp = [self.masks_list[k] for k in indexes]
 
+        # Return a three-elements tuple when using sample_weights with data generators.
+        # Source: https://www.tensorflow.org/api_docs/python/tf/keras/Model#fit
         return self._data_generation(ims_list_temp, masks_list_temp)
 
     def on_epoch_end(self):
@@ -112,6 +119,7 @@ class DataGeneratorPatches(DataGenerator):
     def _data_generation(self, ims_list_temp, masks_list_temp):
         X = np.empty((self.batch_size, *self.dims, self.n_channels))
         y = np.empty((self.batch_size, *self.dims, self.n_channels))
+        w = np.empty((self.batch_size, *self.dims, self.n_channels))
 
         # Generate data
         for i, (im_name, mask_name) in enumerate(zip(ims_list_temp, masks_list_temp)):
@@ -120,13 +128,21 @@ class DataGeneratorPatches(DataGenerator):
                                                             cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE))
             X[i] = im_tensor
             y[i] = mask_tensor
+            w[i] = self.get_sample_weights(y[i])
 
-        return X, y
+        return X, y #, w
 
     def _normalize_sample(self, im: np.ndarray, mask: np.ndarray) -> Tuple:
         im_tensor = np.expand_dims(normalize(np.array(im), axis=1), 2)
         mask_tensor = np.expand_dims(mask, 2) / 255
         return im_tensor, mask_tensor
+
+    def get_sample_weights(self, y):
+        # class_weights = compute_class_weight('balanced', classes=self.class_values, y=y.flatten())
+        w = np.zeros(y.shape, dtype=np.uint8)
+        w[y == 0] = self.class_weights[0]
+        w[y == 1] = self.class_weights[1]
+        return w
 
 
 class PatchGenerator:
@@ -142,16 +158,19 @@ class PatchGenerator:
         self.basename_length = 8
 
     def generate(self, ims: List[np.ndarray], masks: List[np.ndarray]):
-        # TODO Why patches seems to be almost duplicated?
         patches = list()
         patches_masks = list()
         for im, mask in zip(ims, masks):
             h, w = im.shape
             for x in range(0, w, self.patch_dim):
                 if x + self.patch_dim >= w:
+                    # if w - x <= self.patch_dim // 5:
+                    #     continue
                     x = w - self.patch_dim
                 for y in range(0, h, self.patch_dim):
                     if y + self.patch_dim >= h:
+                        # if h - y <= self.patch_dim // 5:
+                        #     continue
                         y = h - self.patch_dim
                     patch_arr = im[y: y + self.patch_dim, x: x + self.patch_dim]
                     mask_arr = mask[y: y + self.patch_dim, x: x + self.patch_dim]
@@ -201,8 +220,18 @@ def debugger():
     dg = DataGeneratorImages(im_list, masks_list)
 
 
+def debugger_patches():
+    import glob
+    dir_path = "/home/francisco/Escritorio/unet-bnsreenu/output/2022-01-31_09-13-41/tmp"
+    patches_list = glob.glob(dir_path + '/patches/*')
+    patches_masks_list = glob.glob(dir_path + '/patches_masks/*')
+    dg = DataGeneratorPatches(patches_list, patches_masks_list)
+    sample = dg[0]
+
+
 
 # TESTING
 if __name__ == '__main__':
     # Prepare lists of images and masks
-    debugger()
+    # debugger()
+    debugger_patches()
