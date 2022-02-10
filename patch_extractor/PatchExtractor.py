@@ -17,7 +17,11 @@ from utils import Staining
 ## PARAMETERS ##
 staining = Staining.ALL # Select desired staining: HE, PAS, PM, None to select all of them
 DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'
+RANDOM_ORDER = True
+
+## CONSTANTS ##
 IM_SIZE = 3200
+PATCH_SIZE = 600
 
 ims_directory = os.path.join(DATASET_PATH, 'ims')
 masks_directory = os.path.join(DATASET_PATH, 'gt/masks')
@@ -51,7 +55,7 @@ class Interface(tk.Frame):
 
         self.num_ims = len(self.ims_list)
         self.reduction_ratio = self.compute_reduction_ratio()
-        self.patch_size = 600
+        self.patch_size = PATCH_SIZE
         self.reduced_patch_size = self.patch_size // self.reduction_ratio
         self.canvas_w = IM_SIZE // self.reduction_ratio
         self.canvas_h = IM_SIZE // self.reduction_ratio
@@ -156,7 +160,7 @@ class Interface(tk.Frame):
         by = re.search(r'y([0-9]*)', self.name).group(1)
         gx = int(bx) + bb[2]
         gy = int(by) + bb[3]
-        return bname + '_x{}y{}s600.png'.format(gx, gy)
+        return bname + '_x{}y{}s{}.png'.format(gx, gy, PATCH_SIZE)
 
     def compute_reduction_ratio(self):
         for i in range(1, IM_SIZE):
@@ -193,6 +197,6 @@ class Interface(tk.Frame):
 
 
 if __name__ == '__main__':
-    inter = Interface(ims_directory, masks_directory, staining=staining, rand_order=True)
+    inter = Interface(ims_directory, masks_directory, staining=staining, rand_order=RANDOM_ORDER)
     inter.pack(fill="both", expand=True)
     inter.mainloop()
