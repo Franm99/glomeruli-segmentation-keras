@@ -8,8 +8,8 @@ from utils import MaskType
 DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 # Images and input for model
-STAININGS = ['HE']
-RESIZE_RATIOS = [4, 4, 4, 3, 3, 3]
+STAININGS = ['']
+RESIZE_RATIOS = [4, 3]
 
 # triggers
 FILTER_SUBPATCHES = True
@@ -54,3 +54,5 @@ MASK_TYPE = MaskType.HANDCRAFTED
 OUTPUT_BASENAME = 'output'
 PATCH_SIZE = (3200, 3200)  # TODO rename to IMG_SIZE
 UNET_INPUT_SIZE = 256
+OPENSLIDE_DIR = "C:\\Users\\Usuario\\Documents\\OpenSlide\\openslide-win64-20171122\\bin"
+BIOPSY_DIR = "biopsy"

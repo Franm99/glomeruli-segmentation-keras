@@ -373,6 +373,16 @@ def check_gpu_availability():
             print(e)
 
 
-if __name__ == '__main__':
-    print(Staining.HE)
+def tmp():
+    import shutil
+    p = "output"
+    folders = [os.path.join(p, i) for i in os.listdir(p)]
+    folders.remove("output/.gitignore")
+    for folder in folders:
+        if not os.path.isfile(os.path.join(folder, "test_analysis.txt")):
+            shutil.rmtree(folder)
 
+
+if __name__ == '__main__':
+    # print(Staining.HE)
+    tmp()

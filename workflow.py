@@ -217,76 +217,6 @@ class WorkFlow:
                     np.logical_or(mask[y:y + self.patch_dim, x:x + self.patch_dim], prediction_rs.astype(bool))
         return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
 
-    # def run(self, resize_ratios: List[int], stainings: List[str]):
-    #     """ Method to execute the test bench. Sequentially, the following steps will be executed:
-    #     1. Initialize path where output files will be saved.
-    #     2. Data pre-processing using Dataset class.
-    #     3. Model configuration.
-    #     4. Training
-    #     5. Validation
-    #     6. Testing
-    #     This sequence will be executed for each set of configuration parameters used as input for the test bench class.
-    #     """
-    #     for staining in stainings:
-    #         for resize_ratio in resize_ratios:
-    #             self.logger = self.prepare_output()
-    #
-    #             self.logger.info("########## CONFIGURATION ##########")
-    #             self.logger.info("Staining:       {}".format(staining))
-    #             self.logger.info("Resize ratio:   {}".format(resize_ratio))
-    #
-    #             ts = time.time()
-    #             self.logger.info("########## PREPARE DATASET ##########")
-    #             dataset = Dataset(staining=staining, mask_type=params.MASK_TYPE,
-    #                               mask_size=self._mask_size, mask_simplex=self._mask_simplex)
-    #             xtrain, xval, xtest, ytrain, yval, ytest = self._prepare_data(dataset, resize_ratio)
-    #
-    #             class_weights = self.get_class_weights(ytrain)
-    #             print(class_weights)
-    #
-    #             self.logger.info("########## PREPARE MODEL: {} ##########".format("U-Net"))  # TODO: Select from set of models
-    #             model, callbacks = self._prepare_model()
-    #
-    #             # 3. TRAINING AND VALIDATION STAGE
-    #             self.logger.info("########## TRAINING AND VALIDATION STAGE ##########")
-    #             self.logger.info("Num epochs: {}".format(params.EPOCHS))
-    #             self.logger.info("Batch size: {}".format(params.BATCH_SIZE))
-    #             self.logger.info("Patience for Early Stopping: {}".format(params.ES_PATIENCE))
-    #             self.logger.info("LAUNCHING TRAINING PROCESS:")
-    #             history = model.fit(xtrain, ytrain,
-    #                                 batch_size=params.BATCH_SIZE,
-    #                                 epochs=params.EPOCHS,
-    #                                 validation_data=(xval, yval),
-    #                                 class_weight=class_weights,
-    #                                 callbacks = callbacks,
-    #                                 shuffle=False,
-    #                                 verbose=1)
-    #
-    #             self.logger.info("TRAINING PROCESS FINISHED.")
-    #             wfile = self.weights_path + '/model.hdf5'
-    #             self.logger.info("Saving weights to: {}".format(wfile))
-    #             model.save(wfile)
-    #             self.logger.info("Saving loss and accuracy results collected over epochs.")
-    #             self._save_results(history)
-    #             iou_score = self.compute_IoU(xval, yval, model, th=params.PREDICTION_THRESHOLD)
-    #             self.logger.info("IoU from validation (threshold for binarization={}): {}".format(params.PREDICTION_THRESHOLD,
-    #                                                                                         iou_score))
-    #             self.logger.info("Saving validation predictions (patches) to disk.")
-    #             self._save_val_predictions(xval, yval, model)
-    #
-    #             # 4. TESTING STAGE
-    #             self.logger.info("########## TESTING STAGE ##########")
-    #             self.logger.info("Computing predictions for testing set:")
-    #             test_predictions = self._prepare_test(xtest, dataset.test_list, model, resize_ratio)  # Test predictions
-    #             test_names = dataset.get_data_list(set="test")
-    #             count_ptg = self.count_segmented_glomeruli(test_predictions, test_names)
-    #             self.logger.info("Segmented glomeruli percentage: counted glomeruli / total = {}".format(count_ptg))
-    #             log_file_name = self.save_train_log(history, iou_score, count_ptg, staining, resize_ratio)
-    #             # When a test ends, clear the model to avoid influence in next ones.
-    #             del model
-    #             exec_time = time.time() - ts
-    #             self.send_log_email(exec_time, log_file_name)
-
     def prepare_output(self):
         """
         Initialize directory where output files will be saved for an specific test bench execution.
@@ -353,25 +283,17 @@ class WorkFlow:
         self.logger.info("Second split: Training & Validation split:")
         xtrain, xval, ytrain, yval = dataset.split_train_val(patches_ims, patches_masks)
 
-        # if params.SAVE_TRAINVAL:
-        #     self._save_spatches(xtrain, ytrain, self.patches_train_path)
-        #     self._save_spatches(xval, yval, self.patches_val_path)
-
         # train & val sets are returned as ndarray tensors, ready to be used as input for the U-Net, while test set is a
         # list. It will be processed in the TEST stage.
         xtrain_tensor, ytrain_tensor = self._normalize(xtrain, ytrain)
         xval_tensor, yval_tensor = self._normalize(xval, yval)
         return xtrain_tensor, xval_tensor, xtest_list, ytrain_tensor, yval_tensor, ytest_list
 
-    # def get_class_weights(self, ytrain):
-    #     return compute_class_weight('balanced', classes=self.class_values, y=ytrain.flatten())
-
     def _prepare_model(self):
         model = get_model()
         weights_backup = self.weights_path + '/backup.hdf5'
         checkpoint_cb = cb.ModelCheckpoint(filepath=weights_backup,  # TODO: change monitored metric to IoU
                                            verbose=1, save_best_only=True)
-        # earlystopping_cb = cb.EarlyStopping(monitor='val_loss', patience=params.ES_PATIENCE)
         earlystopping_cb = cb.EarlyStopping(monitor=params.MONITORED_METRIC, patience=params.ES_PATIENCE)
         callbacks = [checkpoint_cb, earlystopping_cb]  # These callbacks are always used
 
@@ -503,7 +425,7 @@ class WorkFlow:
             plt.close()
 
     def save_train_log(self, history, hit_pctg) -> str:
-        log_fname = os.path.join(self.output_folder_path, time.strftime("%Y%m%d-%H%M%S") + '.txt')
+        log_fname = os.path.join(self.output_folder_path, self.log_name.replace("-", "") + '.txt')
         with open(log_fname, 'w') as f:
             # Write parameters used
             f.write("-- PARAMETERS --\n")
