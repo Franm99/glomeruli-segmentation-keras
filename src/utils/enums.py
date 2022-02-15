@@ -2,14 +2,21 @@
 from enum import Enum, auto
 from strenum import StrEnum
 
-from src.utils.utils import Wrapper
-from src.model import keras_models
+# from src.model import keras_models
 
 
-class Models(Enum):
-    """ Enum to select the desired network model to train or work with. """
-    SIMPLE_UNET = Wrapper(keras_models.simple_unet)
-    # ADD YOUR MODELS HERE
+# class Wrapper:
+#     """ Wrapper class to wrap a specific function. """
+#     def __init__(self, f):
+#         self.f = f
+#
+#     def __call__(self, *args, **kwargs):
+#         return self.f(*args, **kwargs)
+#
+# class Models(Enum):
+#     """ Enum to select the desired network model to train or work with. """
+#     SIMPLE_UNET = Wrapper(keras_models.simple_unet)
+#     # ADD YOUR MODELS HERE
 
 
 class Staining(StrEnum):

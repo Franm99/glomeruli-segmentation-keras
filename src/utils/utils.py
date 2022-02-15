@@ -48,15 +48,6 @@ class DataGenerator(ABC, Sequence):
         pass
 
 
-class Wrapper:
-    """ Wrapper class to wrap a specific function. """
-    def __init__(self, f):
-        self.f = f
-
-    def __call__(self, *args, **kwargs):
-        return self.f(*args, **kwargs)
-
-
 GlomeruliClass = {
     # Huge
     "MEMBRANOSO": Size.HUGE.value,
