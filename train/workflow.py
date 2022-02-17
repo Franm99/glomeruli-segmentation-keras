@@ -1,3 +1,5 @@
+import sys
+
 import cv2.cv2 as cv2
 import matplotlib
 import keras
@@ -19,6 +21,7 @@ import time
 import logging
 from sklearn.model_selection import train_test_split
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.model.keras_models import simple_unet
 from src.utils.utils import get_data_from_xml, init_email_info
 from src.utils.enums import MaskType
@@ -97,7 +100,7 @@ class WorkFlow:
 
     def init_data(self):
         self.logger.info("\n########## DATASET INFO ##########")
-        dataset_ims = DatasetImages(self.staining)
+        dataset_ims = DatasetImages(self.staining, balance=params.BALANCE_STAINING)
         xtrainval, xtest, ytrainval, ytest = dataset_ims.split_train_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
         self.logger.info("Train-Validation:          {} images".format(len(xtrainval)))
         self.logger.info("Test:                      {} images".format(len(xtest)))
