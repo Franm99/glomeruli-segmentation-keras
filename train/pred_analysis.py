@@ -10,15 +10,6 @@ from src.utils.utils import browse_path
 # TODO merge pred_analysis and post_process scripts. Compute predictions while loading interface
 
 
-def test_workflow():
-    output_path = browse_path()
-
-    # 1. Load model and weights from desired output log folder
-    load_model_weights(output_path)
-
-    # 2.
-
-
 def launch_interface():
     output_path = browse_path()
     viewer = Viewer(output_folder=output_path, masks_folder='masks')

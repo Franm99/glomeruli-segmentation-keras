@@ -1,3 +1,5 @@
+# TODO Viewer will load pre-trained model instead of predictions
+
 import glob
 import cv2.cv2 as cv2
 from glob import glob
@@ -272,6 +274,9 @@ class Viewer(tk.Frame):
         self.preds_np[self.idx][event.y, event.x] = self.hex2rgb(color)
         self.preds[self.idx] = self.toImageTk(self.preds_np[self.idx])
         self.show_images()
+
+    def load_pretrained_model(self):
+        return os.path.join(self._output_folder, 'weights/model.hdf5')
 
     def load_test_predictions(self) -> Tuple[List[str], List[np.ndarray]]:
         """

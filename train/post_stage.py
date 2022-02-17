@@ -1,6 +1,5 @@
 """ Load weights and test performance and improvements on the way predictions are processed. """
-import openslide
-
+import openslide  # TODO include OS lecture to avoid import errors
 import keras
 import os
 import glob
