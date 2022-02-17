@@ -43,12 +43,28 @@ class ModelData:
     Required filename format: <model_name>-<staining>-<resize_ratio>-<date>.hdf5
     """
     def __init__(self, model_weights: str):
-        self.weights = model_weights
-        fields = os.path.basename(model_weights).split('-')
-        self.name = fields[0]
-        self.staining = fields[1]
-        self.resize_ratio = fields[2]
-        self.date = fields[3].split('.')[0]
+        self._fields = os.path.basename(model_weights).split('-')
+        self._weights = model_weights
+
+    @property
+    def weights(self):
+        return self._weights
+
+    @property
+    def name(self):
+        return self._fields[0]
+
+    @property
+    def staining(self):
+        return self._fields[1]
+
+    @property
+    def resize_ratio(self):
+        return int(self._fields[2])
+
+    @property
+    def date(self):
+        return self._fields[3].split('.')[0]
 
 
 class WSI(openslide.OpenSlide):
@@ -141,7 +157,7 @@ class SegmentationPipeline:
 
     def predict(self, im, th):
         """ SECOND PIPELINE STAGE"""
-        dim = params.UNET_INPUT_SIZE * int(self.model_info.resize_ratio)
+        dim = params.UNET_INPUT_SIZE * self.model_info.resize_ratio
         [h, w] = im.shape
         # Initializing list of masks
         mask = np.zeros((h, w), dtype=bool)
@@ -192,7 +208,7 @@ class SegmentationPipeline:
 
     def load_model(self):
         model = get_model(self.model_info.name, im_h=params.UNET_INPUT_SIZE, im_w=params.UNET_INPUT_SIZE)
-        return load_model_weights(model, self.model_info.weights)
+        return load_model_weights(model, self.model_info._weights)
 
     def get_patches_from_thumbnail(self, im_pil: Image, window_reduced_dim):
         im = np.array(im_pil)
