@@ -1,3 +1,5 @@
+import re
+
 import cv2.cv2 as cv2
 import glob
 import numpy as np
@@ -7,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from typing import Optional, List, Tuple
 from shutil import rmtree
+from random import sample
 
 from src.utils.utils import print_info, print_warn, print_error, timer
 from src.utils.enums import MaskType
@@ -15,19 +18,29 @@ import src.parameters as params
 
 
 class DatasetImages:
-    def __init__(self, staining: str):
+    def __init__(self, staining: str, balance: bool):
         self._ims_path = os.path.join(params.DATASET_PATH, 'ims')
         self._masks_path = os.path.join(params.DATASET_PATH, 'gt/masks')
 
         self.ims_names = [i[:-4] for i in os.listdir(self._ims_path)]
         self.ims_list = [os.path.join(self._ims_path, f'{i}.png') for i in self.ims_names]
+        lim = self.find_balance_limit(self.ims_list)
 
         self.ims_list = [i for i in glob.glob(self._ims_path + '/*') if staining in os.path.basename(i)]
+        if balance:
+            self.ims_list = sample(self.ims_list, lim)
         self.masks_list = [os.path.join(self._masks_path, os.path.basename(i)) for i in self.ims_list]
 
     def split_train_test(self, train_size: float):
         return train_test_split(self.ims_list, self.masks_list, train_size=train_size,
                                 shuffle=True, random_state=params.TRAINVAL_TEST_RAND_STATE)
+
+    @staticmethod
+    def find_balance_limit(ims):
+        counter = {'HE':0, 'PAS':0, 'PM':0}
+        for im in ims:
+            counter[re.search(r'PAS|PM|HE', im).group(0)] += 1
+        return min(counter.values())
 
 
 class DatasetPatches:
@@ -335,13 +348,10 @@ class Dataset():
 
 def debugging():
     import glob
-    im_list = glob.glob(params.DATASET_PATH + '/ims/*')[:10]
-    masks_list = glob.glob(params.DATASET_PATH + '/gt/masks/*')[:10]
-    testDataset = TestDataset(im_list, masks_list)
-    for im, mask, name in testDataset:
-        print(im)
-        print(mask)
-        print(name)
+    im_list = glob.glob(params.DATASET_PATH + '/ims/*')
+    masks_list = glob.glob(params.DATASET_PATH + '/gt/masks/*')
+    imsDataset = DatasetImages("HE", balance=True)
+
 
 
 if __name__ == '__main__':
