@@ -196,6 +196,10 @@ def browse_path():
     return os.path.basename(full_path)
 
 
+def browse_file():
+    return filedialog.askopenfilename(initialdir='data/raw')
+
+
 def find_blobs_centroids(img: np.ndarray) -> List[Tuple[float, float]]:
     """
     This function implements region labelling and region properties extraction to find, label and compute centroids of

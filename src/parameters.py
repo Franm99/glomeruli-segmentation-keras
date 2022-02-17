@@ -5,8 +5,8 @@ from src.utils.enums import MaskType, Staining
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
 # DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
-# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
-DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
+DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+# DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 # Images and input for model
 STAININGS = [Staining.PM]
@@ -15,9 +15,10 @@ RESIZE_RATIOS = [4, 3]
 # triggers
 FILTER_SUBPATCHES = True
 SAVE_TRAINVAL = False
-SEND_EMAIL = True
+SEND_EMAIL = False
 CLEAR_DATA = True
 SAVE_TRAIN_HISTORY = True
+BALANCE_STAINING = True
 
 # Model parameters
 LEARNING_RATE = 0.001
@@ -54,6 +55,7 @@ MASK_TYPE = MaskType.HANDCRAFTED
 # constants
 OUTPUT_BASENAME = 'output'
 PATCH_SIZE = (3200, 3200)  # TODO rename to IMG_SIZE
+STRIDE_PTG = 1/4
 UNET_INPUT_SIZE = 256
 OPENSLIDE_DIR = "C:\\Users\\Usuario\\Documents\\OpenSlide\\openslide-win64-20171122\\bin"
 BIOPSY_DIR = "biopsy"
