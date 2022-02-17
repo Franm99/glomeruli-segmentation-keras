@@ -1,14 +1,23 @@
-import keras
 import os
+from sys import platform
+import keras
 import glob
 import cv2.cv2 as cv2
 import numpy as np
 from tensorflow.keras.utils import normalize
-import openslide  # !!
 
 from src.model import keras_models
 import src.parameters as params
 from src.utils.utils import show_ims
+
+if platform == "win32":
+    _dll_path = os.getenv('OPENSLIDE_PATH')  # TODO add README.md guide for Openslide import while using Windows
+    if _dll_path is not None:
+        # Python >= 3.8
+        with os.add_dll_directory(_dll_path):
+            import openslide
+else:
+    import openslide
 
 # output_folder = browse_path()
 output_folder = "2022-01-20_16-40-12"

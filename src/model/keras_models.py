@@ -70,7 +70,7 @@ def simple_unet(im_h: int, im_w: int, im_ch: int = 1) -> keras.Model:
 
     outputs = Conv2D(1, (1, 1), activation='sigmoid')(c9)
 
-    model = Model(inputs=[inputs], outputs=[outputs])
+    model = Model(inputs=[inputs], outputs=[outputs], name="simple_unet")
     model.compile(optimizer=Adam(params.LEARNING_RATE),
                   loss='binary_crossentropy',
                   metrics=params.MODEL_METRICS)

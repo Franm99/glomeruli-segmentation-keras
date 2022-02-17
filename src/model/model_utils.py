@@ -3,11 +3,11 @@ import keras
 from src.model.keras_models import simple_unet
 
 
-def get_model(model, **kwargs) -> keras.Model:
+def get_model(model: str, **kwargs) -> keras.Model:
     """ Get Keras network model.
      :param model: defined and compiled Keras model to use. Choose one from: src.model.keras_models
      :**kwargs: input arguments and values for the specified model. Check the model docstring. """
-    return model(**kwargs)
+    return eval(model)(**kwargs)
 
 
 # TODO use weigths file name to determine the keras model to use. Naming example: simple_unet-HE-3-<date>.hdf5
