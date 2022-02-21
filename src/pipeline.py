@@ -33,8 +33,6 @@ if platform == "win32":
 else:
     import openslide
 
-from openslide import open_slide
-
 
 @dataclass
 class ModelData:
@@ -74,6 +72,17 @@ class WSI(openslide.OpenSlide):
         self.dimensions_thumbnail, self.ss_factor = self._find_lower_thumbnail_dimensions()
         self.window_reduced_dim = self.find_window_reduced_dim()
 
+    def get_thumbnail(self, size: Optional[Tuple[int, int]] = None):
+        """
+        Overrides get_thumbnail method from openslide.Openslide class.
+        :param size: if None, the lower allowed thumbnail size is automatically computed. Else, call to the original
+         get_thumbnail() method.
+        :return: PIL.Image containing RGB thumbnail. """
+        if size:
+            return super().get_thumbnail(size)
+        else:
+            return self.get_best_thumbnail()
+
     def _find_lower_thumbnail_dimensions(self):
         max_level = self.level_count - 1
         ss_factor = None
@@ -95,17 +104,6 @@ class WSI(openslide.OpenSlide):
         window_reduced_dim = self.find_window_reduced_dim()
         return self.get_thumbnail(best_dims)
 
-    def get_thumbnail(self, size: Optional[Tuple[int, int]] = None):
-        """
-        Overrides get_thumbnail method from openslide.Openslide class.
-        :param size: if None, the lower allowed thumbnail size is automatically computed. Else, call to the original
-         get_thumbnail() method.
-        :return: PIL.Image containing RGB thumbnail. """
-        if size:
-            return super().get_thumbnail(size)
-        else:
-            return self.get_best_thumbnail()
-
 
 class SegmentationPipeline:
     """ Pipeline to obtain glomeruli segmentation from a renal biopsy Whole-Slide Image. """
@@ -120,6 +118,12 @@ class SegmentationPipeline:
         self.stride_proportion = 1/4
         self.slide = None
         self.prediction = None
+
+    def run(self, slide: str, th: float):
+        ims_generator = self.preprocess_slide(slide)
+        for im, name in tqdm(ims_generator, desc="Generating predictions"):
+            pred = self.predict(im, th)
+            self.assembly(pred, name)
 
     def preprocess_slide(self, slide_file: str) :
         """
@@ -200,15 +204,17 @@ class SegmentationPipeline:
         """ THIRD PIPELINE STAGE """
         x, y = self.get_coords(name)
         s = params.PATCH_SIZE[0]
+        # print(f"x: {x}, y: {y}, s: {s}")
         self.prediction[y:y+s, x:x+s] = np.logical_or(self.prediction[y:y+s, x:x+s], pred)
 
     def init_prediction(self):
         slide_dims = self.slide.dimensions
-        self.prediction = np.zeros(slide_dims, dtype=np.uint8)
+        w, h = self.slide.dimensions
+        self.prediction = np.zeros((h, w), dtype=np.uint8)
 
     def load_model(self):
         model = get_model(self.model_info.name, im_h=params.UNET_INPUT_SIZE, im_w=params.UNET_INPUT_SIZE)
-        return load_model_weights(model, self.model_info._weights)
+        return load_model_weights(model, self.model_info.weights)
 
     def get_patches_from_thumbnail(self, im_pil: Image, window_reduced_dim):
         im = np.array(im_pil)
@@ -234,8 +240,11 @@ class SegmentationPipeline:
                     Y.append(R)
         return X, Y
 
-    def get_prediction(self):
-        pass
+    def get_scaled_prediction(self, reduction_factor: int):
+        w_wsi, h_wsi = self.slide.dimensions
+        w_reduced, h_reduced = int(w_wsi / reduction_factor), int(h_wsi / reduction_factor)
+        pred_pil = Image.fromarray(self.prediction * 255)  # bool to uint8 casting
+        return pred_pil.resize((w_reduced, h_reduced))
 
     @staticmethod
     def is_tissue_patch(patch):
@@ -253,35 +262,30 @@ class SegmentationPipeline:
         return x, y
 
 
-def load_model(model_weights):
-    model = get_model(simple_unet, im_w=params.UNET_INPUT_SIZE, im_h=params.UNET_INPUT_SIZE)
-    return load_model_weights(model, model_weights)
-
-
-def debugger():
-    print(os.path.join(os.path.dirname(os.path.dirname((os.path.abspath("__file__")))), 'output'))
-    out_dir = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath("__file__")))), 'output')
-    data_dir = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath("__file__")))), 'data')
-    weights_dir = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath("__file__")))), 'models')
-    weights_file = os.path.join(weights_dir, "simple_unet-HE-4-011422_081632.hdf5")
-    # slide_path = os.path.join(data_dir, "raw/20B0011364 A 1 HE.tif")
-    slide_path = os.path.join(data_dir, "raw/21A3 A25 HE.tif")
-
-    segmenter = SegmentationPipeline(weights_file)
-    ims_generator = segmenter.preprocess_slide(slide_path)
-    th = 0.6
-    for im, name in ims_generator:
-        pred = segmenter.predict(im, th)
-        # plt.figure()
-        # plt.subplot(121)
-        # plt.imshow(im, cmap="gray")
-        # plt.suptitle(name)
-        # plt.subplot(122)
-        # plt.imshow(pred, cmap="gray")
-        # plt.show()
-        segmenter.assembly(pred, name)
-    prediction = segmenter.get_prediction()
-
-
-if __name__ == '__main__':
-    debugger()
+# def debugger():
+#     data_dir = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), 'data')
+#     weights_dir = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), 'models')
+#     weights_file = os.path.join(weights_dir, "simple_unet-HE-4-011422_081632.hdf5")
+#     slide_path = os.path.join(data_dir, "raw/21B0000257 A 1 HE.tif")
+#
+#     segmenter = SegmentationPipeline(weights_file)
+#     ims_generator = segmenter.preprocess_slide(slide_path)
+#     th = 0.6
+#     for im, name in tqdm(ims_generator, desc="Generating predictions"):
+#         pred = segmenter.predict(im, th)
+#         # plt.figure()
+#         # plt.subplot(121)
+#         # plt.imshow(im, cmap="gray")
+#         # plt.suptitle(name)
+#         # plt.subplot(122)
+#         # plt.imshow(pred, cmap="gray")
+#         # plt.show()
+#         segmenter.assembly(pred, name)
+#     prediction = segmenter.get_scaled_prediction(reduction_factor=16)
+#
+#
+#
+#
+#
+# if __name__ == '__main__':
+#     debugger()
