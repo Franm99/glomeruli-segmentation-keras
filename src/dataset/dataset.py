@@ -11,7 +11,7 @@ from typing import Optional, List, Tuple
 from shutil import rmtree
 from random import sample
 
-from src.utils.utils import print_info, print_warn, print_error, timer
+from src.utils.utils import print_info, print_error, timer
 from src.utils.enums import MaskType
 from src.dataset.mask_generator.MaskGenerator import MaskGenerator
 import src.parameters as params

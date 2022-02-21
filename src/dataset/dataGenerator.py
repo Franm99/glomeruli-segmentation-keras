@@ -1,4 +1,6 @@
 """ Data generator class to progressively load data to RAM """
+import random
+
 from tensorflow.keras.utils import normalize
 from typing import List, Tuple
 import numpy as np
@@ -17,7 +19,8 @@ class DataGeneratorImages(DataGenerator):
                  masks_list: List[str],
                  batch_size: int = 16,
                  shuffle: bool = True,
-                 n_channels: int = 1):
+                 n_channels: int = 1,
+                 augmentation: bool = False):
         """
         Initializes DataGenerator for images.
         :param ims_list: list of paths to image dataset.
@@ -31,6 +34,9 @@ class DataGeneratorImages(DataGenerator):
         self.batch_size = batch_size
         self.n_channels = n_channels
         self.shuffle = shuffle
+        self.augmentation = augmentation
+        if self.augmentation:
+            self.ims_list, self.masks_list = self.data_cloning()
         self.on_epoch_end()
 
     def __len__(self):
@@ -62,6 +68,15 @@ class DataGeneratorImages(DataGenerator):
             X.append(cv2.imread(im_name, cv2.IMREAD_GRAYSCALE))
             y.append(cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE))
         return X, y
+
+    def data_cloning(self, target_size: int = 360):
+        indexes = list(range(len(self.ims_list)))
+        indexes.extend([random.choice(indexes) for _ in range(target_size - len(indexes))])
+        ims_aug = [self.ims_list[i] for i in indexes]
+        masks_aug = [self.masks_list[i] for i in indexes]
+        return ims_aug, masks_aug
+
+
 
 
 class DataGeneratorPatches(DataGenerator):

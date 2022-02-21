@@ -110,7 +110,7 @@ class WorkFlow:
     def train(self, xtrainval, ytrainval):
         """ Execute the training stage """
         # Use generator for train+val images to avoid RAM excessive usage
-        dataGenImages = DataGeneratorImages(xtrainval, ytrainval, shuffle=False)
+        dataGenImages = DataGeneratorImages(xtrainval, ytrainval, shuffle=False, augmentation=params.DATA_CLONING)
         self.logger.info("Batch size:               {}".format(params.BATCH_SIZE))
         self.logger.info("Num of batches:           {}".format(len(dataGenImages)))
         self.logger.info("--------------------------------")

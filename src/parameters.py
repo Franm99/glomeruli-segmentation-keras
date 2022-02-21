@@ -9,16 +9,17 @@ from src.utils.enums import MaskType, Staining
 DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 # Images and input for model
-STAININGS = [Staining.HE, Staining.PM, Staining.PAS]
-RESIZE_RATIOS = [3]
+STAININGS = [Staining.PM, Staining.PAS, Staining.HE]
+RESIZE_RATIOS = [3, 3]
 
 # triggers
 FILTER_SUBPATCHES = True
 SAVE_TRAINVAL = False
-SEND_EMAIL = False
+SEND_EMAIL = True
 CLEAR_DATA = True
 SAVE_TRAIN_HISTORY = True
-BALANCE_STAINING = True
+BALANCE_STAINING = False
+DATA_CLONING = True
 
 # Model parameters
 LEARNING_RATE = 0.001
