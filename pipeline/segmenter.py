@@ -8,6 +8,7 @@ from tensorflow.keras.utils import normalize
 
 from src.model import keras_models
 import src.parameters as params
+import src.constants as const
 from src.utils.utils import show_ims
 
 if platform == "win32":
@@ -29,7 +30,7 @@ WSI = os.path.join(par_dir, "20B0011364 A 1 HE.tif")
 
 def get_model() -> keras.Model:
     """ return: U-Net Keras model (TF2 Version)"""
-    return unet_model(params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE, 1)
+    return unet_model(const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE, 1)
 
 
 def load_model() -> keras.Model:
@@ -68,7 +69,7 @@ def get_pred_mask(im, dim, model, th: float):
                 prediction_rs = np.zeros((dim, dim), dtype=np.uint8)
             else:
                 # Tissue sub-patches are fed to the U-net model for mask prediction
-                patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
+                patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
                 patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                 prediction = (model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)
                 prediction_rs = cv2.resize(prediction[0], (dim, dim), interpolation=cv2.INTER_AREA)
@@ -89,7 +90,7 @@ def main():
     # 2. Predict glomeruli location
     th = 0.8
     predictions = []
-    patch_dim = int(params.UNET_INPUT_SIZE * params.RESIZE_RATIOS[0])
+    patch_dim = int(const.UNET_INPUT_SIZE * params.RESIZE_RATIOS[0])
 
     for im, name in zip(ims, ims_names):
         pred = get_pred_mask(im, patch_dim, model, th)

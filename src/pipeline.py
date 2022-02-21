@@ -21,6 +21,7 @@ from tensorflow.keras.utils import normalize
 import re
 
 import src.parameters as params
+import src.constants as const
 from src.model.model_utils import get_model, load_model_weights
 from src.model.keras_models import simple_unet
 
@@ -89,7 +90,7 @@ class WSI(openslide.OpenSlide):
         for level in range(max_level, 1, -1):
             ss_factor = 2 ** level
             reduced_dim = params.PATCH_SIZE[0] / ss_factor
-            stride = reduced_dim * params.STRIDE_PTG
+            stride = reduced_dim * const.STRIDE_PTG
             if math.floor(stride) == stride:
                 break
 
@@ -161,7 +162,7 @@ class SegmentationPipeline:
 
     def predict(self, im, th):
         """ SECOND PIPELINE STAGE"""
-        dim = params.UNET_INPUT_SIZE * self.model_info.resize_ratio
+        dim = const.UNET_INPUT_SIZE * self.model_info.resize_ratio
         [h, w] = im.shape
         # Initializing list of masks
         mask = np.zeros((h, w), dtype=bool)
@@ -185,7 +186,7 @@ class SegmentationPipeline:
                     # prediction = np.zeros((dim, dim), dtype=np.uint8)
                 else:
                     # Tissue sub-patches are fed to the U-net model for mask prediction
-                    patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE),
+                    patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE),
                                        interpolation=cv2.INTER_AREA)
                     patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                     prediction = self.model.predict(patch_input)[:, :, :, 0]
@@ -213,13 +214,13 @@ class SegmentationPipeline:
         self.prediction = np.zeros((h, w), dtype=np.uint8)
 
     def load_model(self):
-        model = get_model(self.model_info.name, im_h=params.UNET_INPUT_SIZE, im_w=params.UNET_INPUT_SIZE)
+        model = get_model(self.model_info.name, im_h=const.UNET_INPUT_SIZE, im_w=const.UNET_INPUT_SIZE)
         return load_model_weights(model, self.model_info.weights)
 
     def get_patches_from_thumbnail(self, im_pil: Image, window_reduced_dim):
         im = np.array(im_pil)
         h, w, _ = im.shape
-        stride = int(window_reduced_dim * params.STRIDE_PTG)
+        stride = int(window_reduced_dim * const.STRIDE_PTG)
         ss_factor = self.slide.ss_factor
 
         X = list()

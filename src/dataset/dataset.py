@@ -15,18 +15,20 @@ from src.utils.utils import print_info, print_warn, print_error, timer
 from src.utils.enums import MaskType
 from src.dataset.mask_generator.MaskGenerator import MaskGenerator
 import src.parameters as params
+import src.constants as const
 
 
 class DatasetImages:
     def __init__(self, staining: str, balance: bool):
-        self._ims_path = os.path.join(params.DATASET_PATH, 'ims')
-        self._masks_path = os.path.join(params.DATASET_PATH, 'gt/masks')
+        self._ims_path = os.path.join(const.SEGMENTER_DATA_PATH, staining, 'ims')
+        self._masks_path = os.path.join(const.SEGMENTER_DATA_PATH, staining, 'gt/masks')
 
         self.ims_names = [i[:-4] for i in os.listdir(self._ims_path)]
         self.ims_list = [os.path.join(self._ims_path, f'{i}.png') for i in self.ims_names]
-        lim = self.find_balance_limit(self.ims_list)
+        lim = self.find_balance_limit()
 
-        self.ims_list = [i for i in glob.glob(self._ims_path + '/*') if staining in os.path.basename(i)]
+        # self.ims_list = [i for i in glob.glob(self._ims_path + '/*') if staining in os.path.basename(i)]
+        self.ims_list = glob.glob(self._ims_path + '/*')
         if balance:
             self.ims_list = sample(self.ims_list, lim)
         self.masks_list = [os.path.join(self._masks_path, os.path.basename(i)) for i in self.ims_list]
@@ -36,10 +38,8 @@ class DatasetImages:
                                 shuffle=True, random_state=params.TRAINVAL_TEST_RAND_STATE)
 
     @staticmethod
-    def find_balance_limit(ims):
-        counter = {'HE':0, 'PAS':0, 'PM':0}
-        for im in ims:
-            counter[re.search(r'PAS|PM|HE', im).group(0)] += 1
+    def find_balance_limit():
+        counter = {st:len(os.listdir(os.path.join(const.SEGMENTER_DATA_PATH, st, 'ims'))) for st in ['HE', 'PAS', 'PM']}
         return min(counter.values())
 
 
@@ -84,24 +84,24 @@ class Dataset():
         Paths initialization to find data in disk. Images and ground-truth masks full-paths are loaded.
         """
         # Paths
-        self._ims_path = params.DATASET_PATH + '/ims'
-        self._xmls_path = params.DATASET_PATH + '/xml'
+        self.data_path = os.path.join(const.SEGMENTER_DATA_PATH, staining)
+        self._ims_path = self.data_path + '/ims'
+        self._xmls_path = self.data_path + '/xml'
         if mask_type == MaskType.HANDCRAFTED:
-            self._masks_path = params.DATASET_PATH + '/gt/masks'
+            self._masks_path = self.data_path + '/gt/masks'
         else:
             if mask_type == MaskType.CIRCULAR:
-                self._masks_path = params.DATASET_PATH + '/gt/circles'
+                self._masks_path = self.data_path + '/gt/circles'
                 if mask_size:
                     self._masks_path = self._masks_path + str(mask_size)
                 if mask_simplex:
                     self._masks_path = self._masks_path + "_simplex"
             else:
-                self._masks_path = params.DATASET_PATH + '/gt/bboxes'
+                self._masks_path = self.data_path + '/gt/bboxes'
 
         # output directories
         # Files to keep track of the data used
-        self._ims_list_path = params.DATASET_PATH + '/ims.txt'  # patches names
-        # self._test_file = params.DATASET_PATH + '/test.txt'  # names of test images
+        self._ims_list_path = self.data_path + '/ims.txt'  # patches names
 
         # Instance parameters initialization
         self._staining = staining
@@ -192,7 +192,7 @@ class Dataset():
         patches = []
         patches_masks = []
         print_info("Generating sub-patches for training stage and saving to disk...")
-        patch_size_or = params.UNET_INPUT_SIZE * rz_ratio
+        patch_size_or = const.UNET_INPUT_SIZE * rz_ratio
         for im, mask in tqdm(zip(ims, masks), total=len(ims), desc ="Generating subpatches"):
             [h, w] = im.shape
             for x in range(0, w, patch_size_or):
@@ -208,9 +208,9 @@ class Dataset():
                         if not self._filter(mask_arr):
                             continue
                     patch = np.asarray(
-                        Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                        Image.fromarray(patch_arr).resize((const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE)))
                     patch_mask = self.binarize(np.asarray(
-                        Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE))))
+                        Image.fromarray(mask_arr).resize((const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE))))
                     patches.append(patch)
                     patches_masks.append(patch_mask)
 
@@ -326,36 +326,3 @@ class Dataset():
         :return: class attribute containing the name list of the desired set.
         """
         return eval("self." + set + "_list")
-
-
-# Testing
-# if __name__ == '__main__':
-#     print_info("Building dataset...")
-#     dataset = Dataset(staining="HE", mask_size=None, mask_simplex=False)
-#     xtrainval, xtest, ytrainval, ytest = dataset.split_trainval_test(train_size=0.9)
-#     print_info("Train/Validation set size: {}".format(len(xtrainval)))
-#     print_info("Test set size: {}".format(len(xtest)))
-#     ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=0.1)
-#     print_info("Plotting sample:")
-#     idx = random.randint(0, len(ims)-1)
-#     plt.imshow(ims[idx], cmap="gray")
-#     plt.imshow(masks[idx], cmap="jet", alpha=0.3)
-#     plt.show()
-#     x_t, y_t = dataset.get_spatches(ims, masks, rz_ratio=4, from_disk=True)
-#     print(x_t.shape, y_t.shape)
-#     xtrain, xval, ytrain, yval = dataset.split_train_val(x_t, y_t)
-#     print(xtrain.shape, xval.shape)
-
-def debugging():
-    import glob
-    im_list = glob.glob(params.DATASET_PATH + '/ims/*')
-    masks_list = glob.glob(params.DATASET_PATH + '/gt/masks/*')
-    imsDataset = DatasetImages("HE", balance=True)
-
-
-
-if __name__ == '__main__':
-    debugging()
-
-
-

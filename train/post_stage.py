@@ -15,6 +15,7 @@ from PIL import Image
 from src.utils.utils import browse_path, show_ims
 from src.model.keras_models import simple_unet
 import src.parameters as params
+import src.constants as const
 
 output_folder = browse_path()
 output_dir = os.path.join('output', output_folder)
@@ -22,7 +23,7 @@ output_dir = os.path.join('output', output_folder)
 
 def get_model() -> keras.Model:
     """ return: U-Net Keras model (TF2 version)"""
-    return simple_unet(params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE, 1)
+    return simple_unet(const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE, 1)
 
 
 def load_model() -> keras.Model:
@@ -76,7 +77,7 @@ def _get_pred_mask(im, dim, model, th: float):
                 # prediction = np.zeros((dim, dim), dtype=np.uint8)
             else:
                 # Tissue sub-patches are fed to the U-net model for mask prediction
-                patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
+                patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
                 patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                 prediction = model.predict(patch_input)[:, :, :, 0]
                 # prediction = prediction[0, :, :]
@@ -103,7 +104,7 @@ def validate_model():
     # plt.imshow(test_ims[0])
     th = 0.7
     predictions = []
-    org_size = int(params.UNET_INPUT_SIZE * params.RESIZE_RATIOS[0])
+    org_size = int(const.UNET_INPUT_SIZE * params.RESIZE_RATIOS[0])
     for im, name, gt, pred in zip(test_ims, test_names, gt_ims, preds):
         new_pred = _get_pred_mask(im, org_size, model, th)
         # show_ims(preds, title=name)
@@ -141,7 +142,7 @@ def mask_assembly():
 
     ims, ims_names = load_wsi_patches(wsi_name)
 
-    org_size = int(params.UNET_INPUT_SIZE * 3)
+    org_size = int(const.UNET_INPUT_SIZE * 3)
     th = 0.7
     predictions = predict(model, ims, org_size, th)
 

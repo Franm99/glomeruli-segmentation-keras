@@ -5,12 +5,12 @@ from src.utils.enums import MaskType, Staining
 # Paths (vary depending on which machine is used)
 # Add your own dataset path here:
 # DATASET_PATH = '/home/al409458/FISABIO/DataGlomeruli'  # Ubuntu (Guepard) -> MAIN DEVICE
-DATASET_PATH = 'D:/DataGlomeruli'  # Windows
-# DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
+# DATASET_PATH = 'D:/DataGlomeruli'  # Windows
+DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 
 # Images and input for model
-STAININGS = [Staining.PM]
-RESIZE_RATIOS = [4, 3]
+STAININGS = [Staining.HE, Staining.PM, Staining.PAS]
+RESIZE_RATIOS = [3]
 
 # triggers
 FILTER_SUBPATCHES = True
@@ -53,7 +53,7 @@ MASK_TYPE = MaskType.HANDCRAFTED
 # MASK_TYPE = MaskType.CIRCULAR
 
 # constants
-OUTPUT_BASENAME = 'output'
+OUTPUT_BASENAME = '../output'
 PATCH_SIZE = (3200, 3200)  # TODO rename to IMG_SIZE
 STRIDE_PTG = 1/4
 UNET_INPUT_SIZE = 256

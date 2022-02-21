@@ -28,6 +28,7 @@ from src.utils.enums import MaskType
 from src.dataset.dataset import Dataset, DatasetImages, DatasetPatches, TestDataset
 from src.dataset.dataGenerator import DataGeneratorImages, DataGeneratorPatches, PatchGenerator
 import src.parameters as params
+import src.constants as const
 
 matplotlib.use('Agg')  # Uncomment when working with SSH and background processes!
 if params.SEND_EMAIL:
@@ -36,7 +37,7 @@ if params.SEND_EMAIL:
 
 def get_model() -> keras.Model:
     """ return: U-Net Keras model (TF2 version)"""
-    return simple_unet(params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE, 1)
+    return simple_unet(const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE, 1)
 
 
 class WorkFlow:
@@ -49,19 +50,19 @@ class WorkFlow:
         self._mask_size = mask_size
         self._mask_simplex = mask_simplex
 
-        self._ims_path = params.DATASET_PATH + '/ims'
-        self._xml_path = params.DATASET_PATH + '/xml'
+        self._ims_path = const.SEGMENTER_DATA_PATH + '/ims'
+        self._xml_path = const.SEGMENTER_DATA_PATH + '/xml'
         if mask_type == MaskType.HANDCRAFTED:
-            self._masks_path = params.DATASET_PATH + '/gt/masks'
+            self._masks_path = const.SEGMENTER_DATA_PATH + '/gt/masks'
         else:
             if mask_type == MaskType.CIRCULAR:
-                self._masks_path = params.DATASET_PATH + '/gt/circles'
+                self._masks_path = const.SEGMENTER_DATA_PATH + '/gt/circles'
                 if mask_size:
                     self._masks_path = self._masks_path + str(self._mask_size)
                 if mask_simplex:
                     self._masks_path = self._masks_path + "_simplex"
             else:
-                self._masks_path = params.DATASET_PATH + '/gt/bboxes'
+                self._masks_path = const.SEGMENTER_DATA_PATH + '/gt/bboxes'
 
         self.staining = None
         self.patch_dim = None
@@ -74,7 +75,7 @@ class WorkFlow:
                 ts = time.time()
 
                 self.staining, self.resize_ratio = staining, resize_ratio
-                self.patch_dim = params.UNET_INPUT_SIZE * self.resize_ratio
+                self.patch_dim = const.UNET_INPUT_SIZE * self.resize_ratio
 
                 # 1. Each training iteration will generate its proper output folder
                 self.prepare_output()
@@ -116,7 +117,7 @@ class WorkFlow:
 
         # PatchGenerator object can be reused for each images batch.
         patchGenerator = PatchGenerator(patch_dim=self.patch_dim,
-                                        squared_dim=params.UNET_INPUT_SIZE,
+                                        squared_dim=const.UNET_INPUT_SIZE,
                                         filter=params.FILTER_SUBPATCHES)
 
         # Patches are saved in a tmp directory, so a new DataGenerator can be set up for the training stage.
@@ -208,7 +209,7 @@ class WorkFlow:
                     prediction_rs = np.zeros((self.patch_dim, self.patch_dim), dtype=np.uint8)
                 else:
                     # Tissue sub-patches are fed to the U-net model for mask prediction
-                    patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE),
+                    patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE),
                                        interpolation=cv2.INTER_AREA)
                     patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                     prediction = (self.model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)
@@ -227,7 +228,7 @@ class WorkFlow:
         """
         # Output log folder
         self.log_name = time.strftime("%Y-%m-%d_%H-%M-%S")
-        self.output_folder_path = os.path.join(params.OUTPUT_BASENAME, self.log_name)
+        self.output_folder_path = os.path.join(const.OUTPUT_BASENAME, self.log_name)
         os.mkdir(self.output_folder_path)
 
         # Weights saved for later usage
@@ -316,7 +317,7 @@ class WorkFlow:
 
     def _prepare_test(self, ims, ims_names, model, resize_ratio):
         predictions = []
-        org_size = int(params.UNET_INPUT_SIZE * resize_ratio)
+        org_size = int(const.UNET_INPUT_SIZE * resize_ratio)
         for im, im_name in tqdm(zip(ims, ims_names), total=len(ims), desc="Test predictions"):
             pred = self._get_pred_mask(im, org_size, model, th=params.PREDICTION_THRESHOLD)
             predictions.append(pred)
@@ -351,7 +352,7 @@ class WorkFlow:
                     prediction_rs = np.zeros((dim, dim), dtype=np.uint8)
                 else:
                     # Tissue sub-patches are fed to the U-net model for mask prediction
-                    patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE),
+                    patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE),
                                        interpolation=cv2.INTER_AREA)
                     patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                     prediction = (model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)

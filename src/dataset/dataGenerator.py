@@ -6,6 +6,7 @@ import cv2.cv2 as cv2
 from PIL import Image
 
 import src.parameters as params
+import src.constants as const
 from src.utils.utils import DataGenerator
 
 
@@ -68,7 +69,7 @@ class DataGeneratorPatches(DataGenerator):
     def __init__(self,
                  ims_list: List[str],
                  masks_list: List[str],
-                 dims: Tuple[int, int] = (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE),
+                 dims: Tuple[int, int] = (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE),
                  batch_size: int = params.BATCH_SIZE,
                  shuffle: bool = True,
                  n_channels: int = 1):
@@ -175,9 +176,9 @@ class PatchGenerator:
                         if not self._include_patch(mask_arr):
                             continue
                     patch = np.asarray(
-                        Image.fromarray(patch_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE)))
+                        Image.fromarray(patch_arr).resize((const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE)))
                     patch_mask = self.binarize(np.asarray(
-                        Image.fromarray(mask_arr).resize((params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE))))
+                        Image.fromarray(mask_arr).resize((const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE))))
                     patches.append(patch)
                     patches_masks.append(patch_mask)
         self.batch_counter = len(patches)
@@ -205,29 +206,3 @@ class PatchGenerator:
     def binarize(im):
         th = 200
         return 255 * (im > th)
-
-
-def debugger():
-    import os
-    from glob import glob
-    # Prepare lists of images and masks
-    im_list = glob(params.DATASET_PATH + '/ims/*')
-    masks_list = glob(params.DATASET_PATH + '/gt/masks/*')
-    dg = DataGeneratorImages(im_list, masks_list)
-
-
-def debugger_patches():
-    import glob
-    dir_path = "/home/francisco/Escritorio/unet-bnsreenu/output/2022-01-31_09-13-41/tmp"
-    patches_list = glob.glob(dir_path + '/patches/*')
-    patches_masks_list = glob.glob(dir_path + '/patches_masks/*')
-    dg = DataGeneratorPatches(patches_list, patches_masks_list)
-    sample = dg[0]
-
-
-
-# TESTING
-if __name__ == '__main__':
-    # Prepare lists of images and masks
-    # debugger()
-    debugger_patches()
