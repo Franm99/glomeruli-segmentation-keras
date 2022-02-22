@@ -2,7 +2,7 @@
 
 import glob
 import cv2.cv2 as cv2
-from glob import glob
+import glob
 import numpy as np
 import os
 from PIL import Image as Img
@@ -10,37 +10,96 @@ from PIL.ImageTk import PhotoImage
 from PIL import ImageTk
 import tkinter as tk
 from tkinter import ttk
-from typing import List, Tuple
+from typing import List, Optional
+import re
+from tensorflow.keras.utils import normalize
 
 from src.utils.utils import find_blobs_centroids
-from src.parameters import DATASET_PATH
+from src.model.model_utils import load_model_weights, get_model
+import src.parameters as params
+import src.constants as const
+
+
+class TrainingData:
+    """
+    Data extracted from a training output data folder.
+    """
+    def __init__(self, dir_path):
+        self._dir_path = dir_path
+        self._model = os.path.join(self._dir_path, "weights", "model.hdf5")
+        self._foldername = os.path.basename(self._dir_path)
+        self._logFile = LogFile(os.path.join(self._dir_path, self._foldername.replace("-", "") + ".txt"))
+        self._predictions = glob.glob(os.path.join(self._dir_path, "test_pred") + '/*')
+
+    @property
+    def model(self):
+        return self._model
+
+    @property
+    def predictions(self):
+        return self._predictions
+
+    @property
+    def staining(self):
+        return self._logFile.staining
+
+    @property
+    def th(self):
+        return float(self._logFile.prediction_threshold)
+
+    @property
+    def resize_ratio(self):
+        return int(self._logFile.resize_ratio)
+
+
+class LogFile:
+    def __init__(self, filepath):
+        self._filepath = filepath
+        with open(self._filepath, "r") as f:
+            lines = f.readlines()
+
+        for line in lines:
+            if not "--" in line:
+                fields = re.split(" +", line.strip())
+                setattr(self, fields[0].lower(), fields[1])
 
 
 class Viewer(tk.Frame):
-    def __init__(self, output_folder: str, masks_folder: str):
+    def __init__(self, output_folder: str, th: Optional[float] = None, from_dir: bool = False):
         # Initialize tkinter interface
         super().__init__()
-        self.canvas_w, self.canvas_h = 400, 400
 
         self._output_folder = output_folder
-        self._masks_folder = os.path.join(DATASET_PATH, 'gt', masks_folder)
+        self._th = th
+        self._from_dir = from_dir
+
+        self.canvas_w, self.canvas_h = 400, 400  # TODO automatically compute best window size
+
+        self.trainingData = TrainingData(self._output_folder)
+        if not self._th:
+            self._th = self.trainingData.th
+
+        self._ims_folder = os.path.join(const.SEGMENTER_DATA_PATH, self.trainingData.staining, "ims")
+        self._masks_folder = os.path.join(const.SEGMENTER_DATA_PATH, self.trainingData.staining, "gt", "masks")
+
+        if not from_dir:
+            print("Loading pre-trained model...")
+            model = get_model("simple_unet", im_h=const.UNET_INPUT_SIZE, im_w=const.UNET_INPUT_SIZE)
+            self._model = load_model_weights(model, self.trainingData.model)
 
         # Load images, ground-truth masks and prediction masks (in numpy array format)
-        self.names, self.preds_np = self.load_test_predictions()
         self.ims_np = self.load_ims()
+        self.preds_np = self.load_test_predictions()
         self.masks_np = self.load_gt()
 
         # Convert to PhotoImage format to display on tkinter canvas
-        # self.preds = self.toImageTk(self.preds_np)
-        # self.ims = self.toImageTk(self.ims_np)
-        # self.masks = self.toImageTk(self.masks_np)
         self.preds = [self.toImageTk(pred) for pred in self.preds_np]
         self.ims = [self.toImageTk(im) for im in self.ims_np]
         self.masks = [self.toImageTk(mask) for mask in self.masks_np]
 
         # Initialize interface variables
         self.idx = 0
-        self.num_ims = len(self.names)
+        self.num_ims = len(self.ims_np)
         self.local_true_positives = tk.StringVar()
         self.local_false_negatives = tk.StringVar()
         self.local_false_positives = tk.StringVar()
@@ -51,6 +110,7 @@ class Viewer(tk.Frame):
         self.accuracy = tk.StringVar()
         self.precision = tk.StringVar()
         self.progress = tk.StringVar()
+        self.data = tk.StringVar()
 
         self.gt_glomeruli_counter = 0
         self.pred_glomeruli_counter = 0
@@ -97,6 +157,8 @@ class Viewer(tk.Frame):
 
         self.lblProgress = tk.Label(self, textvariable=self.progress, font="Arial 10")
         self.lblProgress.grid(row=14, column=2, padx=10, pady=10)
+        self.lblData = tk.Label(self, textvariable=self.data)
+        self.lblData.grid(row=14, column=0, pady=10, padx=10)
 
         # Text panel
         ttk.Separator(self, orient=tk.VERTICAL).grid(column=5, row=0, rowspan=15, sticky='ns')
@@ -136,6 +198,8 @@ class Viewer(tk.Frame):
         self.lblAccuracy.grid(column=7, row=12, padx=10, sticky="w")
         self.lblPrecision = tk.Label(self, textvariable=self.precision)
         self.lblPrecision.grid(column=7, row=13, padx=10, sticky="w")
+
+
 
     def show_images(self):
         """
@@ -182,6 +246,7 @@ class Viewer(tk.Frame):
         self.accuracy.set(str(0))
         self.precision.set(str(0))
         self.progress.set("{}/{}".format(self.idx+1, len(self.ims)))
+        self.data.set(f"{self.trainingData.staining}, th = {self._th}")
 
     def cb_add_true_positive(self, event):
         """
@@ -200,7 +265,7 @@ class Viewer(tk.Frame):
         self.accuracy.set("{:.2f}".format(self.compute_accuracy(self.TP, self.FN)))
         self.precision.set("{:.2f}".format(self.compute_precision(self.TP, self.FP)))
         self.plot_mark(event, color="#00ff00")
-        print("Left-click:", event.x, event.y)
+        # print("Left-click:", event.x, event.y)
 
     def cb_add_false_positive(self, event):
         """
@@ -214,8 +279,7 @@ class Viewer(tk.Frame):
         # Update precision value
         prec = (self.TP / (self.TP + self.FP)) * 100.0
         self.precision.set("{:.2f}".format(self.compute_precision(self.TP, self.FP)))
-        self.plot_mark(event, color="#0000ff")
-        print("Right-click:", event.x, event.y)
+        self.plot_mark(event, color="#ff0000")
 
     @staticmethod
     def compute_accuracy(tp, fn):
@@ -230,14 +294,18 @@ class Viewer(tk.Frame):
         Method to save (global) results in a txt file for later study.
         NOTE: output file will be saved in the output directory.
         """
-        filename = os.path.join(os.path.dirname(__file__), 'output', self._output_folder, "test_analysis.txt")
+        filename = os.path.join(os.path.dirname(__file__), 'output', self._output_folder, "test_analysis{}.txt".format(self.filename_counter()))
         with open(file=filename, mode="w") as f:
+            f.write("-- PARAMETERS --\n")
+            f.write("STAINING = {}\n".format(self.trainingData.staining))
+            f.write("TH = {}\n".format(str(self._th)))
+            f.write("----------------\n")
             f.write("GLOMERULI COUNT: {}\n".format(str(self.gt_glomeruli_counter)))
-            f.write("TRUE POSITIVES: {}\n".format(self.global_true_positives.get()))
+            f.write("TRUE POSITIVES:  {}\n".format(self.global_true_positives.get()))
             f.write("FALSE NEGATIVES: {}\n".format(self.global_false_negatives.get()))
             f.write("FALSE POSITIVES: {}\n".format(self.global_false_positives.get()))
-            f.write("ACCURACY (%): {}\n".format(self.accuracy.get()))
-            f.write("PRECISION (%): {}\n".format(self.precision.get()))
+            f.write("ACCURACY (%):    {}\n".format(self.accuracy.get()))
+            f.write("PRECISION (%):   {}\n".format(self.precision.get()))
         print("Results saved to file: {}".format(filename))
 
     def cb_prevImage(self):
@@ -271,43 +339,45 @@ class Viewer(tk.Frame):
     def plot_mark(self, event, color: str):
         # cy, cx = event.y, event.x
         # y, x = np.ogrid[-cy:]
-        self.preds_np[self.idx][event.y, event.x] = self.hex2rgb(color)
-        self.preds[self.idx] = self.toImageTk(self.preds_np[self.idx])
-        self.show_images()
+        # self.preds_np[self.idx][event.y, event.x] = self.hex2rgb(color)
+        # self.preds[self.idx] = self.toImageTk(self.preds_np[self.idx])
+        # self.show_images()
+        self.create_circle(event.x, event.y, color=color)
 
     def load_pretrained_model(self):
         return os.path.join(self._output_folder, 'weights/model.hdf5')
 
-    def load_test_predictions(self) -> Tuple[List[str], List[np.ndarray]]:
+    def load_test_predictions(self):
         """
         Load test prediction masks from the specified folder.
         :return: (filenames list, numpy array images list)
         """
-        dir_path = os.path.join(os.path.dirname(__file__), 'output', self._output_folder, 'test_pred')
-        test_pred_list = glob(dir_path + '/*')
-        pred_ims_np = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in test_pred_list]
-        test_pred_names = [os.path.basename(i) for i in test_pred_list]
-        return test_pred_names, pred_ims_np
+        if self._from_dir:
+            print("Loading predictions from previous training...")
+            test_pred_list = self.trainingData.predictions
+            return [cv2.imread(i, cv2.IMREAD_COLOR) for i in test_pred_list]
+        else:
+            # Use pre-trained model to compute predictions
+            print("Computing predictions using pre-trained model using th={} ...".format(self._th))
+            return [self._get_pred_mask(i) for i in self.ims_np]
 
     def load_ims(self) -> List[np.ndarray]:
         """
         Load images from where test prediction images have been obtained.
         :return: numpy array images list
         """
-        dir_path = os.path.join(DATASET_PATH, 'ims')
-        filenames = [os.path.join(dir_path, i) for i in self.names]
-        ims_list = [cv2.cvtColor(cv2.imread(i, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB) for i in filenames]
-        return ims_list
+        names = [os.path.basename(i) for i in self.trainingData.predictions]
+        ims_names = [os.path.join(self._ims_folder, name) for name in names]
+        return [cv2.cvtColor(cv2.imread(i, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB) for i in ims_names]
 
     def load_gt(self) -> List[np.ndarray]:
         """
         Load ground-truth masks attached to the images from where test prediction masks have been obtained.
         :return: numpy array images list
         """
-        dir_path = os.path.join(DATASET_PATH, 'gt', self._masks_folder)
-        filenames = [os.path.join(dir_path, i) for i in self.names]
-        gt_list = [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in filenames]
-        return gt_list
+        names = [os.path.basename(i) for i in self.trainingData.predictions]
+        masks_names = [os.path.join(self._masks_folder, name) for name in names]
+        return [cv2.imread(i, cv2.IMREAD_GRAYSCALE) for i in masks_names]
 
     # def toImageTk(self, ims: List[np.ndarray]) -> List[PhotoImage]:
     #     """
@@ -327,7 +397,50 @@ class Viewer(tk.Frame):
         im = im_pil.resize((self.canvas_w, self.canvas_h))
         return ImageTk.PhotoImage(im)
 
+    def _get_pred_mask(self, im):
+        im_gray = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
+        [h, w] = im_gray.shape
+        dim = const.UNET_INPUT_SIZE * self.trainingData.resize_ratio
+
+        # Initializing list of masks
+        mask = np.zeros((h, w), dtype=bool)
+        # Loop through the whole in both dimensions
+        for x in range(0, w, dim):
+            if x + dim >= w:
+                x = w - dim
+            for y in range(0, h, dim):
+                if y + dim >= h:
+                    y = h - dim
+                # Get sub-patch in original size
+                patch = im_gray[y:y + dim, x:x + dim]
+
+                # Median filter applied on image histogram to discard non-tissue sub-patches
+                counts, bins = np.histogram(patch.flatten(), list(range(256 + 1)))
+                counts.sort()
+                median = np.median(counts)
+                if median <= 3.:
+                    # Non-tissue sub-patches automatically get a null mask
+                    prediction_rs = np.zeros((dim, dim), dtype=np.uint8)
+                else:
+                    # Tissue sub-patches are fed to the U-net model for mask prediction
+                    patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE),
+                                       interpolation=cv2.INTER_AREA)
+                    patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
+                    prediction = (self._model.predict(patch_input)[:, :, :, 0] >= self._th).astype(np.uint8)
+                    prediction_rs = cv2.resize(prediction[0], (dim, dim), interpolation=cv2.INTER_AREA)
+
+                mask[y:y + dim, x:x + dim] = np.logical_or(mask[y:y + dim, x:x + dim], prediction_rs.astype(bool))
+        return mask.astype(np.uint8) * 255  # Change datatype from np.bool to np.uint8
+
+    def create_circle(self, x, y, color, r=5):
+        return self.canvas_pred.create_oval(x-r, y-r, x+r, y+r, fill=color, outline="")
+
+    def filename_counter(self):
+        test_logs = [i for i in glob.glob(self._output_folder + '/*') if (i.startswith("test") and i.endswith(".txt"))]
+        return str(len(test_logs)) if len(test_logs) > 0 else ""
+
     @staticmethod
     def hex2rgb(hex):
         r, g, b = hex[1:3], hex[3:5], hex[5:7]
         return int(r, 16), int(g, 16), int(b, 16)
+

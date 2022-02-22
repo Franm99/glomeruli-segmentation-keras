@@ -192,8 +192,8 @@ def browse_path():
     Default initial directory: output/ folder.
     NOTE: To select a certain output folder, you may first enter to that folder!
     """
-    full_path = filedialog.askdirectory(initialdir='output')
-    return os.path.basename(full_path)
+    full_path = filedialog.askdirectory(initialdir='../output')
+    return full_path
 
 
 def browse_file():
