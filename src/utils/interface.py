@@ -1,4 +1,3 @@
-import glob
 import cv2.cv2 as cv2
 import glob
 import numpy as np
@@ -14,7 +13,6 @@ from tensorflow.keras.utils import normalize
 
 from src.utils.utils import find_blobs_centroids
 from src.model.model_utils import load_model_weights, get_model
-import src.parameters as params
 import src.constants as const
 
 
@@ -71,7 +69,9 @@ class Viewer(tk.Frame):
         self._th = th
         self._from_dir = from_dir
 
-        self.canvas_w, self.canvas_h = 400, 400  # TODO automatically compute best window size
+        self.reduction_ratio = self.compute_reduction_ratio()
+        self.canvas_w = const.IMG_SIZE[0] // self.reduction_ratio
+        self.canvas_h = const.IMG_SIZE[0] // self.reduction_ratio
 
         self.trainingData = TrainingData(self._output_folder)
         if not self._th:
@@ -436,6 +436,12 @@ class Viewer(tk.Frame):
     def filename_counter(self):
         test_logs = [i for i in glob.glob(self._output_folder + '/*') if (i.startswith("test") and i.endswith(".txt"))]
         return str(len(test_logs)) if len(test_logs) > 0 else ""
+
+    def compute_reduction_ratio(self):
+        sz = const.IMG_SIZE[0]
+        for i in range(1, sz):
+            if ((sz % i == 0) and ((sz // i) * 3 < self.winfo_screenwidth() * 3/4)):
+                return i
 
     @staticmethod
     def hex2rgb(hex):
