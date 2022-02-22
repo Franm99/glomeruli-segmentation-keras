@@ -302,7 +302,7 @@ class WorkFlow:
         callbacks = [checkpoint_cb, earlystopping_cb]  # These callbacks are always used
 
         if params.SAVE_TRAIN_HISTORY:
-            csvlogger_cb = cb.CSVLogger(self.logs_path + 'log.csv', separator=',', append=False)
+            csvlogger_cb = cb.CSVLogger(os.path.join(self.logs_path, 'log.csv'), separator=',', append=False)
             callbacks.append(csvlogger_cb)
 
         if params.ACTIVATE_REDUCELR:
@@ -431,6 +431,7 @@ class WorkFlow:
             plt.close()
 
     def save_train_log(self, history, hit_pctg) -> str:
+        # TODO include used model (e.g., 'simple_unet')
         log_fname = os.path.join(self.output_folder_path, self.log_name.replace("-", "") + '.txt')
         with open(log_fname, 'w') as f:
             # Write parameters used
