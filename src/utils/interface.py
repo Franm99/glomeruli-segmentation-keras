@@ -1,5 +1,3 @@
-# TODO Viewer will load pre-trained model instead of predictions
-
 import glob
 import cv2.cv2 as cv2
 import glob

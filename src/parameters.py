@@ -55,7 +55,7 @@ MASK_TYPE = MaskType.HANDCRAFTED
 
 # constants
 OUTPUT_BASENAME = '../output'
-PATCH_SIZE = (3200, 3200)  # TODO rename to IMG_SIZE
+PATCH_SIZE = (3200, 3200)
 STRIDE_PTG = 1/4
 UNET_INPUT_SIZE = 256
 OPENSLIDE_DIR = "C:\\Users\\Usuario\\Documents\\OpenSlide\\openslide-win64-20171122\\bin"

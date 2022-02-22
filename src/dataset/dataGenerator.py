@@ -186,7 +186,6 @@ class PatchGenerator:
                         y = h - self.patch_dim
                     patch_arr = im[y: y + self.patch_dim, x: x + self.patch_dim]
                     mask_arr = mask[y: y + self.patch_dim, x: x + self.patch_dim]
-                    # TODO: Add balancing stage when no filtering is used.
                     if self.filter:
                         if not self._include_patch(mask_arr):
                             continue
