@@ -363,6 +363,21 @@ def tmp():
             shutil.rmtree(folder)
 
 
+def t_find_blob_centroids():
+    data_dir = "../../data"
+    mask_sample = os.path.join(data_dir, "segmenter", "HE", "gt", "masks", "20B0004711 HE_x4800y14400s3200.png")
+    import cv2.cv2 as cv2
+    im = cv2.imread(mask_sample, cv2.IMREAD_GRAYSCALE)
+    centroids = find_blobs_centroids(im)
+    print(centroids)
+    import matplotlib.pyplot as plt
+    plt.imshow(im, cmap="gray")
+    for (cy, cx) in centroids:
+        plt.plot(cx, cy, ".r")
+    plt.show()
+
+
 if __name__ == '__main__':
     # print(Staining.HE)
-    tmp()
+    # tmp()
+    t_find_blob_centroids()

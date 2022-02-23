@@ -367,19 +367,17 @@ class WorkFlow:
                 mask[y:y + dim, x:x + dim] = np.logical_or(mask[y:y + dim, x:x + dim], prediction_rs.astype(bool))
         return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
 
-    def count_segmented_glomeruli(self, preds, test_list):
-        # TODO use handcrafted masks instead of xml files (more precise count)
-        xml_list = [os.path.join(self._xml_path, os.path.basename(i).split('.')[0] + ".xml") for i in test_list]
-        counter_total = 0
+    @staticmethod
+    def compute_metrics(preds, masks):
+        gt_count = 0
+        # pred_count = 0  # TODO add pre-processing stage to compute estimated precision
         counter = 0
-        for pred, xml in zip(preds, xml_list):
-            data = get_data_from_xml(xml, mask_size=self._mask_size, apply_simplex=self._mask_simplex)
-            for r in data.keys():
-                points = data[r]
-                for (cx, cy) in points:
-                    counter_total += 1
-                    counter += 1 if pred[cy, cx] else 0
-        return counter / counter_total
+        for pred, mask in zip(preds, masks):
+            centroids = find_blobs_centroids(mask)
+            for (cy, cx) in centroids:
+                gt_count += 1
+                counter += 1 if pred[cy, cx] else 0
+        return (counter / gt_count) * 100  # Percentage
 
     @staticmethod
     def save_imgs_list(dir_path: str, imgs_list: List[np.ndarray],
@@ -460,7 +458,7 @@ class WorkFlow:
             num_epochs = len(history.history['loss'])
             f.write('TRAINING_LOSS          {}\n'.format(str(loss[-1])))
             f.write('NUM_EPOCHS             {}\n'.format(str(num_epochs)))
-            f.write('APROX_HIT_PCTG         {}\n'.format(str(hit_pctg)))
+            f.write('APROX_HIT_PCTG         {}\n'.format(str(estimated_accuracy)))
 
         return log_fname
 
