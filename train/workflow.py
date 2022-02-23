@@ -62,7 +62,8 @@ class WorkFlow:
         self.staining = None
         self.patch_dim = None
         self.resize_ratio = None
-        self.logger = None
+        self.logger = self.init_logger()
+        self.log_handler = None
 
     def start(self, resize_ratios: List[int], stainings: List[str]):
         for staining in stainings:
@@ -217,6 +218,10 @@ class WorkFlow:
                     np.logical_or(mask[y:y + self.patch_dim, x:x + self.patch_dim], prediction_rs.astype(bool))
         return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
 
+    def init_logger(self):
+        logging.basicConfig(handlers=[logging.NullHandler()], level=logging.INFO)
+        return logging.getLogger(__name__)
+
     def prepare_output(self):
         """
         Initialize directory where output files will be saved for an specific test bench execution.
@@ -250,11 +255,10 @@ class WorkFlow:
         os.mkdir(self.patches_masks_tmp_path)
 
         # Create logger for saving console info
-        logging.basicConfig(filename=os.path.join(self.output_folder_path, "console.log"),
-                            format='[%(levelname)s]: %(message)s',
-                            level=logging.INFO)
-        logger = logging.getLogger(__name__)
-        self.logger = logger
+        self.log_handler = logging.FileHandler(filename=os.path.join(self.output_folder_path, "console.log"))
+        formatter = logging.Formatter('[%(asctime)s] %(funcName)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+        self.log_handler.setFormatter(formatter)
+        self.logger.addHandler(self.log_handler)
 
         # Displaying iteration info before start the training process
         self.logger.info("########## CONFIGURATION ##########")
