@@ -22,8 +22,9 @@ import logging
 from sklearn.model_selection import train_test_split
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.model.model_utils import get_model
 from src.model.keras_models import simple_unet
-from src.utils.utils import get_data_from_xml, init_email_info
+from src.utils.utils import init_email_info, find_blobs_centroids
 from src.utils.enums import MaskType
 from src.dataset.dataset import Dataset, DatasetImages, DatasetPatches, TestDataset
 from src.dataset.dataGenerator import DataGeneratorImages, DataGeneratorPatches, PatchGenerator
@@ -35,14 +36,8 @@ if params.SEND_EMAIL:
     sender_email, password, receiver_email = init_email_info()
 
 
-def get_model() -> keras.Model:
-    """ return: U-Net Keras model (TF2 version)"""
-    return simple_unet(const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE, 1)
-
-
 class WorkFlow:
     """ """
-
     def __init__(self, mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool,
                  limit_samples: Optional[float]):
         """ """
@@ -87,17 +82,21 @@ class WorkFlow:
                 history = self.train(xtrainval, ytrainval)
 
                 # 4. Test stage
-                aprox_hit_pctg = self.test(xtest, ytest)
+                estimated_accuracy = self.test(xtest, ytest)
 
                 # 5. Saving results to output folder and clearning the model variable
                 # self._save_results(history)
-                log_file = self.save_train_log(history, aprox_hit_pctg)
+                log_file = self.save_train_log(history, estimated_accuracy)
                 del self.model
 
                 # 6. If specified, send output info via e-mail
                 exec_time = time.time() - ts
                 if params.SEND_EMAIL:
                     self.send_log_email(exec_time, log_file)
+
+                # Clear log handlers
+                self.logger.handlers = [logging.NullHandler()]
+            pass  # TODO add stage to compute averaged metrics for each staining
 
     def init_data(self):
         self.logger.info("\n########## DATASET INFO ##########")
@@ -141,7 +140,7 @@ class WorkFlow:
         val_dataGen = DataGeneratorPatches(xval, yval)
         # dataGenPatches = DataGeneratorPatches(datasetPatches.patches_list, datasetPatches.patches_masks_list)
 
-        self.logger.info("\n########## MODEL: {} ##########".format("Classic U-Net"))
+        self.logger.info("\n########## MODEL: {} ##########".format(params.KERAS_MODEL))
         self.model, callbacks = self._prepare_model()
 
         # 3. TRAINING AND VALIDATION STAGE
@@ -157,11 +156,8 @@ class WorkFlow:
                                  shuffle=False,
                                  verbose=1,
                                  callbacks=callbacks)
-
-        wfile = self.weights_path + '/model.hdf5'
         self.logger.info("Stopped at epoch:         {}".format(len(history.history["loss"])))
-        self.logger.info("Final weights saved to {}".format(wfile))
-        self.model.save(wfile)
+        self.save_model()
 
         if params.CLEAR_DATA:
             datasetPatches.clear()
@@ -172,9 +168,9 @@ class WorkFlow:
         self.logger.info("\n########## TESTING STAGE ##########")
         testData = TestDataset(xtest, ytest)
         test_predictions = self.predict(testData)
-        aprox_hit_pctg = self.count_segmented_glomeruli(test_predictions, xtest) * 100
-        self.logger.info("Aprox. hit percentage:    {}".format(aprox_hit_pctg))
-        return aprox_hit_pctg
+        estimated_accuracy = self.compute_metrics(test_predictions, ytest)
+        self.logger.info("Accuracy:                 {}".format(estimated_accuracy))
+        return estimated_accuracy
 
     def predict(self, test_data: TestDataset, th: float = params.PREDICTION_THRESHOLD):
         predictions = []
@@ -294,8 +290,8 @@ class WorkFlow:
         return xtrain_tensor, xval_tensor, xtest_list, ytrain_tensor, yval_tensor, ytest_list
 
     def _prepare_model(self):
-        model = get_model()
-        weights_backup = self.weights_path + '/backup.hdf5'
+        model = get_model(params.KERAS_MODEL)
+        weights_backup = self.weights_path + '/ckpt.hdf5'
         checkpoint_cb = cb.ModelCheckpoint(filepath=weights_backup,  # TODO: change monitored metric to IoU
                                            verbose=1, save_best_only=True)
         earlystopping_cb = cb.EarlyStopping(monitor=params.MONITORED_METRIC, patience=params.ES_PATIENCE)
@@ -314,6 +310,15 @@ class WorkFlow:
         self.logger.info("EarlyStopping:      {}".format("Yes"))
         self.logger.info("Train history saver:{}".format("Yes" if params.SAVE_TRAIN_HISTORY else "No"))
         return model, callbacks
+
+    def save_model(self):
+        name = f"{params.KERAS_MODEL}-{self.staining}-{self.resize_ratio}-{self.log_name.replace('-', '')}.hdf5"
+        weights_file = os.path.join(self.weights_path, name)
+        ckpt_file = os.path.join(self.weights_path, "ckpt.hdf5")
+        if os.path.isfile(ckpt_file):
+            os.remove(ckpt_file)
+        self.logger.info("Final weights saved to {}".format(weights_file))
+        self.model.save(weights_file)
 
     def _prepare_test(self, ims, ims_names, model, resize_ratio):
         predictions = []
@@ -402,14 +407,14 @@ class WorkFlow:
         self.logger.info("- {}".format(os.path.join(self.output_folder_path, "loss.png")))
         # self.logger.info("- {}".format(os.path.join(self.output_folder_path, "acc.png")))
 
-    @staticmethod
-    def compute_IoU(xtest, ytest, model, th: float = params.PREDICTION_THRESHOLD):
-        ypred = model.predict(xtest)
-        ypred_th = ypred > th
-        intersection = np.logical_and(ytest, ypred_th)
-        union = np.logical_or(ytest, ypred_th)
-        iou_score = np.sum(intersection) / np.sum(union)
-        return iou_score
+    # @staticmethod
+    # def compute_IoU(xtest, ytest, model, th: float = params.PREDICTION_THRESHOLD):
+    #     ypred = model.predict(xtest)
+    #     ypred_th = ypred > th
+    #     intersection = np.logical_and(ytest, ypred_th)
+    #     union = np.logical_or(ytest, ypred_th)
+    #     iou_score = np.sum(intersection) / np.sum(union)
+    #     return iou_score
 
     def _save_val_predictions(self, xval, yval, model):
         for i, (im, mask) in enumerate(zip(xval, yval)):
@@ -430,7 +435,7 @@ class WorkFlow:
             plt.savefig(val_pred_path)
             plt.close()
 
-    def save_train_log(self, history, hit_pctg) -> str:
+    def save_train_log(self, history, estimated_accuracy) -> str:
         # TODO include used model (e.g., 'simple_unet')
         log_fname = os.path.join(self.output_folder_path, self.log_name.replace("-", "") + '.txt')
         with open(log_fname, 'w') as f:
@@ -438,6 +443,7 @@ class WorkFlow:
             f.write("-- PARAMETERS --\n")
             f.write('STAINING               {}\n'.format(self.staining))
             f.write('RESIZE_RATIO           {}\n'.format(self.resize_ratio))
+            f.write('MODEL                  {}\n'.format(params.KERAS_MODEL))
             f.write('PREDICTION_THRESHOLD   {}\n'.format(params.PREDICTION_THRESHOLD))
             f.write('TRAIN_VAL_SPLIT_RATE   {}\n'.format(params.TRAIN_SIZE))
             f.write('BATCH_SIZE             {}\n'.format(params.BATCH_SIZE))

@@ -11,11 +11,12 @@ DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'  # Ubuntu (Alien5)
 # Images and input for model
 STAININGS = [Staining.PM, Staining.PAS, Staining.HE]
 RESIZE_RATIOS = [3, 3]
+KERAS_MODEL = "simple_unet"  # Select one from src.model.keras_models.py
 
 # triggers
 FILTER_SUBPATCHES = True
 SAVE_TRAINVAL = False
-SEND_EMAIL = True
+SEND_EMAIL = False
 CLEAR_DATA = True
 SAVE_TRAIN_HISTORY = True
 BALANCE_STAINING = False

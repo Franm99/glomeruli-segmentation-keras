@@ -4,9 +4,10 @@ from keras.layers import Input, Conv2D, MaxPooling2D, UpSampling2D, concatenate,
 from tensorflow.keras.optimizers import Adam
 
 import src.parameters as params
+import src.constants as const
 
 
-def simple_unet(im_h: int, im_w: int, im_ch: int = 1) -> keras.Model:
+def simple_unet(im_h: int = const.UNET_INPUT_SIZE, im_w: int = const.UNET_INPUT_SIZE, im_ch: int = 1) -> keras.Model:
     """ Simple U-Net Keras model
     Source: https://github.com/bnsreenu/python_for_microscopists/blob/master/204-207simple_unet_model.py
     :param im_h: input height
