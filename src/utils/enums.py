@@ -1,5 +1,5 @@
 """ Enum classes """
-from enum import Enum, auto
+from enum import Enum, auto, unique
 from strenum import StrEnum
 
 # from src.model import keras_models
@@ -19,6 +19,14 @@ from strenum import StrEnum
 #     # ADD YOUR MODELS HERE
 
 
+@unique
+class MetricsEnum(StrEnum):
+    LOSS = "loss"
+    EPOCHS = "epochs"
+    ACCURACY = "accuracy"
+
+
+@unique
 class Staining(StrEnum):
     """ Types of staining for Renal biopsy images. """
     HE = 'HE'

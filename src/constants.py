@@ -7,7 +7,7 @@ DATA_PATH = os.path.join(BASE_DIR, "data")
 RAW_DATA_PATH = os.path.join(DATA_PATH, "raw")
 SEGMENTER_DATA_PATH = os.path.join(DATA_PATH, "segmenter")
 
-OUTPUT_BASENAME = os.path.join(BASE_DIR, "output")
+OUTPUT_BASENAME = os.path.join(BASE_DIR, "train", "reports")
 
 
 # miscellaneous

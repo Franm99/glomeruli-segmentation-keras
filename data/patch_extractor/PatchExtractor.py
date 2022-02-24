@@ -12,6 +12,8 @@ import re
 
 from src.utils.enums import Staining
 
+# TODO checkpoint.txt might not be working well
+
 ## PARAMETERS ##
 staining = Staining.ALL # Select desired staining: HE, PAS, PM, None to select all of them
 DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'
@@ -105,7 +107,9 @@ class Interface(tk.Frame):
 
         im = cv2.cvtColor(cv2.imread(next(self.ims_iter), cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
         mask = np.zeros((3200, 3200, 3), dtype=np.uint8)
-        mask[:, :, 2] = cv2.imread(next(self.masks_iter), cv2.IMREAD_GRAYSCALE)
+        mask_gray = next(self.masks_iter)
+        mask[:, :, 1] = cv2.imread(mask_gray, cv2.IMREAD_GRAYSCALE)
+        mask[:, :, 2] = cv2.imread(mask_gray, cv2.IMREAD_GRAYSCALE)
         im_overlayed = cv2.addWeighted(im, 1.0, mask, 0.3, 0.5)
         im_canvas = self.toImageTk(im_overlayed)
         return im, name, im_canvas

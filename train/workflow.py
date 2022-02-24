@@ -23,9 +23,8 @@ from sklearn.model_selection import train_test_split
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.model.model_utils import get_model
-from src.model.keras_models import simple_unet
 from src.utils.utils import init_email_info, find_blobs_centroids
-from src.utils.enums import MaskType
+from src.utils.enums import Staining, MetricsEnum
 from src.dataset.dataset import Dataset, DatasetImages, DatasetPatches, TestDataset
 from src.dataset.dataGenerator import DataGeneratorImages, DataGeneratorPatches, PatchGenerator
 import src.parameters as params
@@ -38,66 +37,44 @@ if params.SEND_EMAIL:
 
 class WorkFlow:
     """ """
-    def __init__(self, mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool,
-                 limit_samples: Optional[float]):
+    def __init__(self, staining: Staining, resize_ratio: int):
         """ """
-        self._limit_samples = limit_samples
-        self._mask_size = mask_size
-        self._mask_simplex = mask_simplex
+        self.staining = staining
+        self.resize_ratio = resize_ratio
+
+        self.patch_dim = const.UNET_INPUT_SIZE * self.resize_ratio
 
         self._ims_path = const.SEGMENTER_DATA_PATH + '/ims'
         self._xml_path = const.SEGMENTER_DATA_PATH + '/xml'
-        if mask_type == MaskType.HANDCRAFTED:
-            self._masks_path = const.SEGMENTER_DATA_PATH + '/gt/masks'
-        else:
-            if mask_type == MaskType.CIRCULAR:
-                self._masks_path = const.SEGMENTER_DATA_PATH + '/gt/circles'
-                if mask_size:
-                    self._masks_path = self._masks_path + str(self._mask_size)
-                if mask_simplex:
-                    self._masks_path = self._masks_path + "_simplex"
-            else:
-                self._masks_path = const.SEGMENTER_DATA_PATH + '/gt/bboxes'
+        self._masks_path = os.path.join(const.SEGMENTER_DATA_PATH, "gt", "masks")
 
-        self.staining = None
-        self.patch_dim = None
-        self.resize_ratio = None
         self.logger = self.init_logger()
-        self.log_handler = None
+        self.log_handler = logging.NullHandler()
 
-    def start(self, resize_ratios: List[int], stainings: List[str]):
-        for staining in stainings:
-            for resize_ratio in resize_ratios:
-                ts = time.time()
+        self._results = dict()
 
-                self.staining, self.resize_ratio = staining, resize_ratio
-                self.patch_dim = const.UNET_INPUT_SIZE * self.resize_ratio
 
-                # 1. Each training iteration will generate its proper output folder
-                self.prepare_output()
+    def launch(self):
+        ts = time.time()
+        # 1. Each training iteration will generate its proper output folder
+        self.prepare_output()
+        # 2. Preparing data
+        xtrainval, xtest, ytrainval, ytest = self.init_data()
+        # 3. Training stage
+        history = self.train(xtrainval, ytrainval)
+        # 4. Testing stage
+        estimated_accuracy = self.test(xtest, ytest)
+        # 5. Saving results to output folder and clearing the model variable
+        # self._save_results(history)
+        log_file = self.save_train_log(history, estimated_accuracy)
+        del self.model
+        # 6. If specified, send output info via e-mail
+        exec_time = time.time() - ts
+        if params.SEND_EMAIL:
+            self.send_log_email(exec_time, log_file)
 
-                # 2. Preparing data
-                xtrainval, xtest, ytrainval, ytest = self.init_data()
-
-                # 3. Training stage
-                history = self.train(xtrainval, ytrainval)
-
-                # 4. Test stage
-                estimated_accuracy = self.test(xtest, ytest)
-
-                # 5. Saving results to output folder and clearning the model variable
-                # self._save_results(history)
-                log_file = self.save_train_log(history, estimated_accuracy)
-                del self.model
-
-                # 6. If specified, send output info via e-mail
-                exec_time = time.time() - ts
-                if params.SEND_EMAIL:
-                    self.send_log_email(exec_time, log_file)
-
-                # Clear log handlers
-                self.logger.handlers = [logging.NullHandler()]
-            pass  # TODO add stage to compute averaged metrics for each staining
+        # Clear log handlers
+        self.logger.handlers = [logging.NullHandler()]
 
     def init_data(self):
         self.logger.info("\n########## DATASET INFO ##########")
@@ -274,10 +251,10 @@ class WorkFlow:
         self.logger.info("Loading images from: {}".format(self._ims_path))
         self.logger.info("Loading masks from: {}".format(self._masks_path))
         self.logger.info("Training and Validation:")
-        ims, masks = dataset.load_pairs(xtrainval, ytrainval, limit_samples=self._limit_samples)
+        ims, masks = dataset.load_pairs(xtrainval, ytrainval)
 
         self.logger.info("Testing:")
-        xtest_list, ytest_list = dataset.load_pairs(xtest_p, ytest_p, limit_samples=self._limit_samples)
+        xtest_list, ytest_list = dataset.load_pairs(xtest_p, ytest_p)
 
         self.logger.info("DATA PREPROCESSING FOR TRAINING.")
         patches_ims, patches_masks = dataset.get_spatches(ims, masks, rz_ratio=resize_ratio,
@@ -437,8 +414,19 @@ class WorkFlow:
             plt.savefig(val_pred_path)
             plt.close()
 
+    def save_results(self, history, estimated_accuracy):
+        """
+        If more metrics are computed in future versions, just modify the results' dictionary adding more fields
+        """
+        loss = history.history['loss']
+        num_epochs = len(history.history['loss'])
+
+        self._results[MetricsEnum.LOSS] = loss[-1]
+        self._results[MetricsEnum.ACCURACY] = estimated_accuracy
+        self._results[MetricsEnum.EPOCHS] = num_epochs
+
+
     def save_train_log(self, history, estimated_accuracy) -> str:
-        # TODO include used model (e.g., 'simple_unet')
         log_fname = os.path.join(self.output_folder_path, self.log_name.replace("-", "") + '.txt')
         with open(log_fname, 'w') as f:
             # Write parameters used
@@ -458,9 +446,10 @@ class WorkFlow:
             f.write("--------------------------------------\n")
             # Write training results
             f.write('-- TRAINING RESULTS --\n')
-            loss = history.history['loss']
-            num_epochs = len(history.history['loss'])
-            f.write('TRAINING_LOSS          {}\n'.format(str(loss[-1])))
+            self.save_results(history, estimated_accuracy)
+            loss = self.results[MetricsEnum.LOSS]
+            num_epochs = self.results[MetricsEnum.EPOCHS]
+            f.write('TRAINING_LOSS          {}\n'.format(str(loss)))
             f.write('NUM_EPOCHS             {}\n'.format(str(num_epochs)))
             f.write('APROX_HIT_PCTG         {}\n'.format(str(estimated_accuracy)))
 
@@ -547,80 +536,15 @@ class WorkFlow:
             for i in data:
                 f.write(i + "\n")
 
-
-# def train():
-#     workflow = WorkFlow(limit_samples=params.DEBUG_LIMIT,
-#                         mask_type=params.MASK_TYPE,
-#                         mask_size=params.MASK_SIZE,
-#                         mask_simplex=params.APPLY_SIMPLEX)
-#     workflow.run(resize_ratios=params.RESIZE_RATIOS,
-#                  stainings=params.STAININGS)
-
-
-# def test():
-#     import glob
-#     ims = glob.glob("D:/DataGlomeruli/gt/Circles/*")
-#     ims.sort()
-#     idx = random.randint(0, len(ims)-1)
-#     print(idx)
-#     im = cv2.imread(ims[idx], cv2.IMREAD_GRAYSCALE)
-#
-#     # Apply erosion
-#     kernel = np.ones((5, 5), np.uint8)
-#     im = cv2.erode(im, kernel, iterations=1)
-#
-#     # Count connected components
-#     retval, labels, stats, centroids = cv2.connectedComponentsWithStats(im)
-#
-#     def imshow_components(labels, im):
-#         label_hue = np.uint8(179*labels/np.max(labels))
-#         blanck_ch = 255*np.ones_like(label_hue)
-#         labeled_im = cv2.merge([label_hue, blanck_ch, blanck_ch])
-#
-#         labeled_im = cv2.cvtColor(labeled_im, cv2.COLOR_HSV2RGB)
-#         labeled_im[label_hue==0] = 0
-#         plt.figure()
-#         plt.subplot(121)
-#         plt.imshow(im, cmap="gray")
-#         plt.subplot(122)
-#         plt.imshow(labeled_im)
-#         plt.show()
-#
-#     imshow_components(labels, im)
-#     a=1
-
-#
-# def testRegionprops():
-#     im_path = '/home/francisco/Escritorio/DataGlomeruli/gt/masks/04B0006786 A 1 HE_x9600y4800s3200.png'
-#     im = cv2.cvtColor(cv2.imread(im_path, cv2.IMREAD_GRAYSCALE), cv2.COLOR_BGR2RGB)
-#     im_th = im.astype(bool)
-#     from skimage.measure import label, regionprops, regionprops_table
-#     label_im = label(im_th)
-#     props = regionprops(label_im)
-#     props_table = regionprops_table(label_im, im_th, properties=['label', 'centroid'])
-#
-#     import pandas as pd
-#     data = pd.DataFrame(props_table)
-#     print(data)
-#
-#     plt.figure()
-#     plt.imshow(im, cmap="gray")
-#     for prop in props:
-#         y, x, _= prop.centroid
-#         plt.plot(x, y, '.g', markersize=15)
-#     plt.show()
+    @property
+    def results(self):
+        return self._results
 
 
 def debugger():
-    workflow = WorkFlow(limit_samples=params.DEBUG_LIMIT,
-                        mask_type=params.MASK_TYPE,
-                        mask_size=params.MASK_SIZE,
-                        mask_simplex=params.APPLY_SIMPLEX)
-    workflow.start(params.RESIZE_RATIOS, params.STAININGS)
+    workflow = WorkFlow(staining=Staining.PM, resize_ratio=3)
+    workflow.launch()
 
 
 if __name__ == '__main__':
-    # train()
-    # test()
-    # testRegionprops()
     debugger()
