@@ -6,8 +6,6 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.utils.enums import Staining
 from src.classes.Metrics import Metrics
-import src.constants as const
-import src.parameters as params
 from workflow import WorkFlow
 
 
@@ -29,8 +27,8 @@ class Session:
     def run(self):
         for st in self.staining_list:
             for rs in self.rratio_list:
-                self.metrics.add_sample(st, rs)
                 workflow = WorkFlow(staining=st, resize_ratio=rs)
+                self.metrics.add_sample(st, rs)
                 workflow.launch()
                 sample_metrics = workflow.results
                 self.metrics.register_metrics(sample_metrics)
@@ -40,10 +38,7 @@ class Session:
         records_dir = os.path.join(self.sessions_dir, "records")
         if not os.path.isdir(records_dir):
             os.mkdir(records_dir)
-
-        self.metrics.export_metrics(records_dir)
-
-        # TODO write the last results.txt file about the best experiment in session
+        self.metrics.build_report(records_dir)
 
     # Static methods
     @staticmethod

@@ -24,6 +24,7 @@ class MetricsEnum(StrEnum):
     LOSS = "loss"
     EPOCHS = "epochs"
     ACCURACY = "accuracy"
+    FOLDER = "report_folder"
 
 
 @unique

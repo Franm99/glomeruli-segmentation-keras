@@ -36,6 +36,9 @@ if params.SEND_EMAIL:
 
 
 class WorkFlow:
+    if not os.path.isdir(const.OUTPUT_BASENAME):
+        os.mkdir(const.OUTPUT_BASENAME)
+
     """ """
     def __init__(self, staining: Staining, resize_ratio: int):
         """ """
@@ -51,13 +54,22 @@ class WorkFlow:
         self.logger = self.init_logger()
         self.log_handler = logging.NullHandler()
 
-        self._results = dict()
+        # Prepare report folder
+        self.log_name = None
+        self.output_folder_path = None
+        self.weights_path = None
+        self.val_pred_path = None
+        self.test_pred_path = None
+        self.logs_path = None
+        self.tmp_folder = None
+        self.patches_tmp_path = None
+        self.patches_masks_tmp_path = None
+        self.prepare_report_folder()
 
+        self._results = dict()
 
     def launch(self):
         ts = time.time()
-        # 1. Each training iteration will generate its proper output folder
-        self.prepare_output()
         # 2. Preparing data
         xtrainval, xtest, ytrainval, ytest = self.init_data()
         # 3. Training stage
@@ -199,7 +211,7 @@ class WorkFlow:
         logging.basicConfig(handlers=[logging.NullHandler()], level=logging.INFO)
         return logging.getLogger(__name__)
 
-    def prepare_output(self):
+    def prepare_report_folder(self):
         """
         Initialize directory where output files will be saved for an specific test bench execution.
         :return: None
@@ -424,6 +436,7 @@ class WorkFlow:
         self._results[MetricsEnum.LOSS] = loss[-1]
         self._results[MetricsEnum.ACCURACY] = estimated_accuracy
         self._results[MetricsEnum.EPOCHS] = num_epochs
+        self._results[MetricsEnum.FOLDER] = self.log_name
 
 
     def save_train_log(self, history, estimated_accuracy) -> str:
@@ -539,6 +552,10 @@ class WorkFlow:
     @property
     def results(self):
         return self._results
+
+    @property
+    def report_folder(self):
+        return self.log_name
 
 
 def debugger():
