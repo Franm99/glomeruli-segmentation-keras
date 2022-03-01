@@ -40,10 +40,11 @@ class WorkFlow:
         os.mkdir(const.OUTPUT_BASENAME)
 
     """ """
-    def __init__(self, staining: Staining, resize_ratio: int):
+    def __init__(self, staining: Staining, resize_ratio: int, session_folder: str):
         """ """
         self.staining = staining
         self.resize_ratio = resize_ratio
+        self.session_folder = session_folder
 
         self.patch_dim = const.UNET_INPUT_SIZE * self.resize_ratio
 
@@ -217,8 +218,8 @@ class WorkFlow:
         :return: None
         """
         # Output log folder
-        self.log_name = time.strftime("%Y-%m-%d_%H-%M-%S")
-        self.output_folder_path = os.path.join(const.OUTPUT_BASENAME, self.log_name)
+        self.log_name = time.strftime("%d-%m-%Y_%H-%M-%S")
+        self.output_folder_path = os.path.join(self.session_folder, self.log_name)
         os.mkdir(self.output_folder_path)
 
         # Weights saved for later usage
@@ -361,11 +362,12 @@ class WorkFlow:
         return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
 
     @staticmethod
-    def compute_metrics(preds, masks):
+    def compute_metrics(preds, masks_names):
         gt_count = 0
         # pred_count = 0  # TODO add pre-processing stage to compute estimated precision
         counter = 0
-        for pred, mask in zip(preds, masks):
+        for pred, mask_name in zip(preds, masks_names):
+            mask = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
             centroids = find_blobs_centroids(mask)
             for (cy, cx) in centroids:
                 gt_count += 1

@@ -14,7 +14,7 @@ class Session:
     if not os.path.isdir(sessions_dir):
         os.mkdir(sessions_dir)
 
-    def __init__(self, staining_list: List[Staining], rratio_list: List[int]):
+    def __init__(self, staining_list: List[Staining], rratio_list: List[int], send_report: bool):
         self.staining_list = staining_list
         self.rratio_list = rratio_list
 
@@ -27,7 +27,7 @@ class Session:
     def run(self):
         for st in self.staining_list:
             for rs in self.rratio_list:
-                workflow = WorkFlow(staining=st, resize_ratio=rs)
+                workflow = WorkFlow(staining=st, resize_ratio=rs, session_folder = self.sess_folder)
                 self.metrics.add_sample(st, rs)
                 workflow.launch()
                 sample_metrics = workflow.results
@@ -35,7 +35,7 @@ class Session:
         self.build_report()
 
     def build_report(self):
-        records_dir = os.path.join(self.sessions_dir, "records")
+        records_dir = os.path.join(self.sess_folder, "records")
         if not os.path.isdir(records_dir):
             os.mkdir(records_dir)
         self.metrics.build_report(records_dir)
@@ -55,7 +55,7 @@ class Session:
 def debugger():
     stainings = [Staining.HE, Staining.PAS]
     rratios = [3, 3, 4]
-    session = Session(stainings, rratios)
+    session = Session(stainings, rratios, False)
 
 
 if __name__ == '__main__':
