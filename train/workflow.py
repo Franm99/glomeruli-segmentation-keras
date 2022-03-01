@@ -2,7 +2,6 @@ import sys
 
 import cv2.cv2 as cv2
 import matplotlib
-import keras
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -10,13 +9,7 @@ import tensorflow.keras.callbacks as cb
 from time import time
 from tensorflow.keras.utils import normalize
 from tqdm import tqdm
-from typing import List, Optional, Tuple
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
+from typing import List, Tuple
 import time
 import logging
 from sklearn.model_selection import train_test_split
@@ -31,8 +24,6 @@ import src.parameters as params
 import src.constants as const
 
 matplotlib.use('Agg')  # Uncomment when working with SSH and background processes!
-if params.SEND_EMAIL:
-    sender_email, password, receiver_email = init_email_info()
 
 
 class WorkFlow:
@@ -68,6 +59,8 @@ class WorkFlow:
         self.prepare_report_folder()
 
         self._results = dict()
+        self._log_fname = None
+        self._exec_time = None
 
     def launch(self):
         ts = time.time()
@@ -79,13 +72,10 @@ class WorkFlow:
         estimated_accuracy = self.test(xtest, ytest)
         # 5. Saving results to output folder and clearing the model variable
         # self._save_results(history)
-        log_file = self.save_train_log(history, estimated_accuracy)
+        self._log_file = self.save_train_log(history, estimated_accuracy)
         del self.model
         # 6. If specified, send output info via e-mail
-        exec_time = time.time() - ts
-        if params.SEND_EMAIL:
-            self.send_log_email(exec_time, log_file)
-
+        self._exec_time = time.time() - ts
         # Clear log handlers
         self.logger.handlers = [logging.NullHandler()]
 
@@ -470,48 +460,6 @@ class WorkFlow:
 
         return log_fname
 
-    @staticmethod
-    def send_log_email(t: float, fname: str):
-        """
-        Send informative email to know when a training process has finished. Time spent is specified.
-        :param t: time spent (in seconds). Preferably, give HH:MM:SS format to improve readability.
-        :return: None
-        """
-        time_mark = time.strftime("%H:%M:%S", time.gmtime(t))
-        port = 465  # for SSL
-        message = MIMEMultipart("alternative")
-        message["Subject"] = "Training finished"
-        message["From"] = sender_email
-        message["To"] = receiver_email
-
-        html = """\
-        <html>
-            <body>
-                Training finished. For further info, check log file.<br>
-                Time spent: {} (h:m:s)<br>
-            </body>
-        </html>
-        """.format(time_mark)
-
-        part1 = MIMEText(html, "html")
-        message.attach(part1)
-
-        # Attach log file
-        with open(fname, "rb") as att:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(att.read())
-
-        encoders.encode_base64(part)
-        part.add_header("Content-disposition",
-                        f"attachment; filename= {os.path.basename(fname)}")
-
-        message.attach(part)
-
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
-            server.login(sender_email, password)
-            server.sendmail(sender_email, receiver_email, message.as_string())
-
     def _save_spatches(self, x: List[np.ndarray], y: List[np.ndarray], dir_path: str):
         ims_path = os.path.join(dir_path, "ims")
         os.mkdir(ims_path)
@@ -559,11 +507,10 @@ class WorkFlow:
     def report_folder(self):
         return self.log_name
 
+    @property
+    def exec_time(self):
+        return self._exec_time
 
-def debugger():
-    workflow = WorkFlow(staining=Staining.PM, resize_ratio=3)
-    workflow.launch()
-
-
-if __name__ == '__main__':
-    debugger()
+    @property
+    def log_filename(self):
+        return self._log_file

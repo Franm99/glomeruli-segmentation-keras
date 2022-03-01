@@ -6,6 +6,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.utils.enums import Staining
 from src.classes.Metrics import Metrics
+from src.utils.utils import EmailHandler
 from workflow import WorkFlow
 
 
@@ -17,12 +18,16 @@ class Session:
     def __init__(self, staining_list: List[Staining], rratio_list: List[int], send_report: bool):
         self.staining_list = staining_list
         self.rratio_list = rratio_list
+        self.send_report = send_report
 
         # Path initialization
         self.sess_name = "session_" + time.strftime("%d-%m-%Y")
         self.sess_folder = self._init_session_folder(os.path.join(self.sessions_dir, self.sess_name))
 
         self.metrics = Metrics()
+        if self.send_report:
+            self.emailInfo = EmailHandler()
+
 
     def run(self):
         for st in self.staining_list:
@@ -32,6 +37,8 @@ class Session:
                 workflow.launch()
                 sample_metrics = workflow.results
                 self.metrics.register_metrics(sample_metrics)
+                if self.send_report:
+                    self.emailInfo.send(workflow.exec_time, workflow.log_filename)
         self.build_report()
 
     def build_report(self):

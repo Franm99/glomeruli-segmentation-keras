@@ -13,6 +13,12 @@ from skimage.measure import regionprops, label
 from getpass import getpass
 from abc import ABC, abstractmethod
 from tensorflow.keras.utils import Sequence
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 
 from src.utils.enums import Size
 
@@ -174,6 +180,47 @@ def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int,
     return data
 
 
+class EmailHandler():
+    def __init__(self):
+        self._sender, self._pass, self._recv = init_email_info()
+
+    def send(self, t: float, fname: str):
+        time_mark = time.strftime("%H:%M:%S", time.gmtime(t))
+        port = 465  # for SSL
+        message = MIMEMultipart("alternative")
+        message["Subject"] = "Training finished"
+        message["From"] = self._sender
+        message["To"] = self._recv
+
+        html = """\
+                <html>
+                    <body>
+                        Training finished. For further info, check log file.<br>
+                        Time spent: {} (h:m:s)<br>
+                    </body>
+                </html>
+                """.format(time_mark)
+
+        part1 = MIMEText(html, "html")
+        message.attach(part1)
+
+        # Attach log file
+        with open(fname, "rb") as att:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(att.read())
+
+        encoders.encode_base64(part)
+        part.add_header("Content-disposition",
+                        f"attachment; filename= {os.path.basename(fname)}")
+
+        message.attach(part)
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
+            server.login(self._sender, self._pass)
+            server.sendmail(self._sender, self._recv, message.as_string())
+
+
 def init_email_info():
     def_sender_email = "pythonAdvisor22@gmail.com"
     req = input("Use default sender ({}) [Y/n]: ".format(def_sender_email))
@@ -212,7 +259,7 @@ def find_blobs_centroids(img: np.ndarray) -> List[Tuple[float, float]]:
     img_regions = regionprops(img_labels)
     centroids = []
     for props in img_regions:
-        centroids.append((props.centroid[0], props.centroid[1]))  # (y, x)
+        centroids.append((int(props.centroid[0]), int(props.centroid[1])))  # (y, x)
     return centroids
 
 
