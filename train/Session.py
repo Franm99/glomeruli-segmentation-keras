@@ -33,7 +33,7 @@ class Session:
         for st in self.staining_list:
             for rs in self.rratio_list:
                 workflow = WorkFlow(staining=st, resize_ratio=rs, session_folder = self.sess_folder)
-                self.metrics.add_sample(st, rs)
+                self.metrics.register_sample(st, rs)
                 workflow.launch()
                 sample_metrics = workflow.results
                 self.metrics.register_metrics(sample_metrics)
