@@ -16,7 +16,7 @@ from sklearn.model_selection import train_test_split
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.model.model_utils import get_model
-from src.utils.utils import init_email_info, find_blobs_centroids
+from src.utils.utils import find_blobs_centroids
 from src.utils.enums import Staining, MetricsEnum
 from src.dataset.dataset import Dataset, DatasetImages, DatasetPatches, TestDataset
 from src.dataset.dataGenerator import DataGeneratorImages, DataGeneratorPatches, PatchGenerator
