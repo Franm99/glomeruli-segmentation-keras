@@ -89,7 +89,7 @@ class Metrics:
             self._records_to_csv(os.path.join(experiment_dir, "records.csv"), label)
             self._get_measures(os.path.join(experiment_dir, "results.csv"), label)
 
-    def build_report(self, records_dir: str) -> None:
+    def build_report(self, records_dir: str) -> str:
         """
         Generate a results file (.txt) for the current session.
 
@@ -113,6 +113,7 @@ class Metrics:
             f.write("BEST SAMPLE:   {}\n".format(best["sample"]))
             f.write("FOLDER NAME:   {}\n".format(best["folder"]))
             f.write("ACCURACY:      {}\n".format(best["max_acc"]))
+        return report_file
 
     def _add_metric(self, key: str, val: Any) -> None:
         """

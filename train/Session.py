@@ -38,14 +38,16 @@ class Session:
                 sample_metrics = workflow.results
                 self.metrics.register_metrics(sample_metrics)
                 if self.send_report:
-                    self.emailInfo.send(workflow.exec_time, workflow.log_filename)
-        self.build_report()
+                    self.emailInfo.send_sample_info(workflow.exec_time, workflow.log_filename)
+        report_file = self.build_report()
+        if self.send_report:
+            self.emailInfo.send_session_info(report_file)
 
-    def build_report(self):
+    def build_report(self) -> str:
         records_dir = os.path.join(self.sess_folder, "records")
         if not os.path.isdir(records_dir):
             os.mkdir(records_dir)
-        self.metrics.build_report(records_dir)
+        return self.metrics.build_report(records_dir)
 
     # Static methods
     @staticmethod

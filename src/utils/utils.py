@@ -182,16 +182,17 @@ def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int,
 
 class EmailHandler():
     def __init__(self):
-        self._sender, self._pass, self._recv = init_email_info()
+        def_sender_email = "pythonAdvisor22@gmail.com"
+        req = input("Use default sender ({}) [Y/n]: ".format(def_sender_email))
+        if req.lower() == "y":
+            self._sender = def_sender_email
+        else:
+            self._sender = input("Specify sender email: ")
+        self._pass = getpass()  # Just for terminal executions, not IDLE!
+        self._recv = input("Specify receiver email: ")
 
-    def send(self, t: float, fname: str):
+    def send_sample_info(self, t: float, fname: str) -> None:
         time_mark = time.strftime("%H:%M:%S", time.gmtime(t))
-        port = 465  # for SSL
-        message = MIMEMultipart("alternative")
-        message["Subject"] = "Training finished"
-        message["From"] = self._sender
-        message["To"] = self._recv
-
         html = """\
                 <html>
                     <body>
@@ -200,37 +201,35 @@ class EmailHandler():
                     </body>
                 </html>
                 """.format(time_mark)
+        self._send_message(subject="Sample training finished", html=html, log_file=fname)
 
-        part1 = MIMEText(html, "html")
-        message.attach(part1)
+    def send_session_info(self, fname: str) -> None:
+        self._send_message(subject="Session ended", log_file=fname)
 
-        # Attach log file
-        with open(fname, "rb") as att:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(att.read())
+    def _send_message(self, subject: str, html: Optional[str] = None, log_file: Optional[str] = None) -> None:
+        port = 465
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = self._sender
+        message["To"] = self._recv
 
-        encoders.encode_base64(part)
-        part.add_header("Content-disposition",
-                        f"attachment; filename= {os.path.basename(fname)}")
+        if html:
+            part1 = MIMEText(html, "html")
+            message.attach(part1)
 
-        message.attach(part)
+        if log_file:
+            with open(log_file, "rb") as att:
+                part = MIMEBase("application", "octet-stream")
+                part.set_payload(att.read())
+            encoders.encode_base64(part)
+            part.add_header("Content-disposition",
+                            f"attachment; filename = {os.path.basename(log_file)}")
+            message.attach(part)
 
         context = ssl.create_default_context()
         with smtplib.SMTP_SSL("smtp.gmail.com", port, context=context) as server:
             server.login(self._sender, self._pass)
             server.sendmail(self._sender, self._recv, message.as_string())
-
-
-def init_email_info():
-    def_sender_email = "pythonAdvisor22@gmail.com"
-    req = input("Use default sender ({}) [Y/n]: ".format(def_sender_email))
-    if req.lower() == "y":
-        sender_email = def_sender_email
-    else:
-        sender_email = input("Specify sender email: ")
-    password = getpass()  # Just for terminal executions, not IDLE!
-    receiver_email = input("Specify receiver email: ")
-    return sender_email, password, receiver_email
 
 
 def browse_path():
