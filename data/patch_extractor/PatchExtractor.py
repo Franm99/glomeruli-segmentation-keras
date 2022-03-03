@@ -15,9 +15,9 @@ from src.utils.enums import Staining
 # TODO checkpoint.txt might not be working well
 
 ## PARAMETERS ##
-staining = Staining.ALL # Select desired staining: HE, PAS, PM, None to select all of them
-DATASET_PATH = '/home/francisco/Escritorio/DataGlomeruli'
-RANDOM_ORDER = True
+staining = "HE" # Select desired staining: HE, PAS, PM, None to select all of them
+DATASET_PATH = 'data_debug'
+RANDOM_ORDER = False
 
 ## CONSTANTS ##
 IM_SIZE = 3200
@@ -33,7 +33,7 @@ checkpoint_file = 'checkpoint.txt'
 
 
 class Interface(tk.Frame):
-    def __init__(self, ims_dir: str, masks_dir: str, staining: Optional[Staining], rand_order: bool = False):
+    def __init__(self, ims_dir: str, masks_dir: str, staining: Optional[str], rand_order: bool = False):
         super().__init__()
         self.ims_dir = ims_dir
         self.masks_dir = masks_dir
@@ -105,9 +105,9 @@ class Interface(tk.Frame):
         name = os.path.basename(im_path)
         self.save_checkpoint(name)
 
-        im = cv2.cvtColor(cv2.imread(next(self.ims_iter), cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
+        im = cv2.cvtColor(cv2.imread(im_path, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
         mask = np.zeros((3200, 3200, 3), dtype=np.uint8)
-        mask_gray = next(self.masks_iter)
+        mask_gray = mask_path
         mask[:, :, 1] = cv2.imread(mask_gray, cv2.IMREAD_GRAYSCALE)
         mask[:, :, 2] = cv2.imread(mask_gray, cv2.IMREAD_GRAYSCALE)
         im_overlayed = cv2.addWeighted(im, 1.0, mask, 0.3, 0.5)
