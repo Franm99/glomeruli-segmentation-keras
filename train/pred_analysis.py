@@ -1,6 +1,6 @@
 """ File to analyze the test set prediction results"""
 from src.utils.interface import Viewer
-from src.utils.utils import browse_path
+from src.utils.misc import browse_path
 
 
 def launch_interface(from_dir, th):

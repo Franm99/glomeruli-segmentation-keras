@@ -5,10 +5,15 @@ import numpy as np
 import os
 from tqdm import tqdm
 from typing import Tuple, List, Dict, Optional
+from bs4 import BeautifulSoup
+from itertools import combinations
+from scipy.optimize import linprog
+from scipy.spatial import distance
 
 import src.parameters as params
-from src.utils.utils import get_data_from_xml, print_info
-from src.utils.enums import MaskType
+from src.utils.misc import print_info
+from src.utils.enums import GlomeruliClass
+from src.utils.enums import MaskType, Size
 
 
 class MaskGenerator:
@@ -109,8 +114,107 @@ class MaskGenerator:
         plt.show()
 
 
-# if __name__ == '__main__':
-#     maskGenerator = MaskGenerator(mask_type=MaskType.CIRCULAR, mask_size=params.MASK_SIZE, apply_simplex=False)
-#     maskGenerator.get_masks_files()
-#     # test()
+def get_data_from_xml(xml_file: str, mask_size: Optional[int],
+                      apply_simplex: bool) -> Dict[int, List[Tuple[int, int]]]:
+    """
+    Read glomeruli classes and coordinates from glomeruli xml file.
+    :param xml_file: full path to an xml file containing glomeruli information.
+    :param mask_size: Desired mask size for synthetic masks. If None, the glomeruli class is used to define radii.
+    :param apply_simplex: If True, Simplex algorithm is applied to avoid mask overlap.
+    :return: Dictionary with keys referring to glomeruli dimensions, with lists of coordinates as values.
+    """
+    with open(xml_file, 'r') as f:
+        data = f.read()
+    bs_data = BeautifulSoup(data, "xml")
+    counts = bs_data.find("Counts").find_all("Count")
 
+    if mask_size:  # Using fixed mask size
+        glomeruli = {mask_size: []}
+        for count in counts:
+            points = count.find_all('point')
+            glomeruli[mask_size].extend([(int(point.get('X')), int(point.get('Y'))) for point in points])
+    else:  # Using variable mask size based on glomeruli class
+        glomeruli = {x.value: [] for x in Size}
+        for count in counts:
+            name = count.get('name')
+            points = count.find_all('point')
+            p = []
+            for point in points:
+                p.append((int(point.get('X')), int(point.get('Y'))))
+            glomeruli[GlomeruliClass[name]].extend(p)
+    if apply_simplex:
+        glomeruli = simplex(glomeruli)
+    return glomeruli
+
+
+def simplex(data: Dict[int, List[Tuple[int, int]]]) -> Dict[int, List[Tuple[int, int]]]:
+    """
+    Apply Simplex algorithm to avoid masks overlap.
+    Simplex algorithm: https://docs.scipy.org/doc/scipy/reference/optimize.linprog-simplex.html
+    :param data: dictionary containing glomeruli information.
+    :return: dictionary containing glomeruli information, with modified radii just when overlap occurs.
+    """
+
+    # Compute D2: size limits for each point (i.e., data key)
+    D2 = np.asarray([size for size in data.keys() for _ in range(len(data[size]))])
+    # Compute X: Set of points. Format: [xc', yc']
+    X = np.asarray([i for size in data.keys() for i in data[size]])  # Set of points
+    # data_ = [[sz, p] for sz in data.keys() for p in data[sz]]
+    # Compute D1: Distance between each points pair
+    D1 = distance.pdist(X, metric='euclidean')
+    N = len(X)
+
+    # Search for duplicate labels (very near coordinates)
+    c = np.asarray(list(combinations(np.arange(N), 2)))
+    targets = c[D1 < 100]  # Threshold set to the minimum radius size allowed
+    to_delete = [tg[0] if D2[tg[0]] < D2[tg[1]] else tg[1] for tg in targets]
+
+    # Re-Compute D2,X and N solving duplicates
+    D2 = np.delete(D2, to_delete)
+    X = np.delete(X, to_delete, axis=0)
+
+    # Re-construct data dict
+    data = {i: [] for i in set(D2)}
+    for idx, p in enumerate(X):
+        data[D2[idx]].append(tuple(p))
+
+    N = len(X)
+    # Re-Compute D1
+    D1 = distance.pdist(X, metric='euclidean')
+
+    # Lower triangle
+    M = np.zeros((N, N), dtype=D1.dtype)
+    # Operations to maintain same format as in MATLAB
+    (rows_idx, cols_idx) = np.tril_indices(N, k=-1)
+    arrlinds = cols_idx.argsort()
+    srows_idx, scols_idx = rows_idx[arrlinds], cols_idx[arrlinds]
+    M[srows_idx, scols_idx] = D1
+
+    # Prepare V
+    fil = len(D1)
+    V = np.zeros((fil, N))
+    params = 0
+    for j in range(N):
+        for i in range(N):
+            if M[i, j] != 0:
+                V[params, i] = 1
+                V[params, j] = 1
+                params += 1
+
+    # f: function to minimize
+    f = np.ones((N, 1)) * 2 * np.pi
+    A = np.eye(N)
+    A = np.concatenate((A, V), axis=0)
+    B = np.concatenate((D2.T, D1.T), axis=0)
+
+    res = linprog(-f, A, B, method="simplex")
+    nlims = res.x.astype(np.int)
+
+    # Update data dictionary with new mask sizes
+    for idx, (plim, nlim) in enumerate(zip(D2, nlims)):
+        if plim != nlim:
+            point = data[plim].pop(0)
+            if nlim not in data.keys():
+                data[nlim] = []
+            data[nlim].append(point)
+    return data

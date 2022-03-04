@@ -19,11 +19,11 @@ import cv2.cv2 as cv2
 from tensorflow.keras.utils import normalize
 import re
 import glob
+from dataclasses import dataclass
 
 import src.parameters as params
 import src.constants as const
 from src.model.model_utils import get_model, load_model_weights
-from src.utils.utils import ModelData
 from src.utils.enums import Staining
 from src.model.keras_models import simple_unet
 
@@ -35,46 +35,6 @@ if platform == "win32":
             import openslide
 else:
     import openslide
-
-
-class WSI(openslide.OpenSlide):
-    """ Specific Openslide class for Renal biopsy Whole-Slide Images. """
-    def __init__(self, filename):
-        super().__init__(filename)
-        self.dimensions_thumbnail, self.ss_factor = self._find_lower_thumbnail_dimensions()
-        self.window_reduced_dim = self.find_window_reduced_dim()
-
-    def get_thumbnail(self, size: Optional[Tuple[int, int]] = None):
-        """
-        Overrides get_thumbnail method from openslide.Openslide class.
-        :param size: if None, the lower allowed thumbnail size is automatically computed. Else, call to the original
-         get_thumbnail() method.
-        :return: PIL.Image containing RGB thumbnail. """
-        if size:
-            return super().get_thumbnail(size)
-        else:
-            return self.get_best_thumbnail()
-
-    def _find_lower_thumbnail_dimensions(self):
-        max_level = self.level_count - 1
-        ss_factor = None
-        for level in range(max_level, 1, -1):
-            ss_factor = 2 ** level
-            reduced_dim = params.PATCH_SIZE[0] / ss_factor
-            stride = reduced_dim * const.STRIDE_PTG
-            if math.floor(stride) == stride:
-                break
-
-        level = self.get_best_level_for_downsample(ss_factor)
-        return self.level_dimensions[level], ss_factor
-
-    def find_window_reduced_dim(self):
-        return int(params.PATCH_SIZE[0] / self.ss_factor)
-
-    def get_best_thumbnail(self):
-        best_dims, ss_factor = self._find_lower_thumbnail_dimensions()
-        window_reduced_dim = self.find_window_reduced_dim()
-        return self.get_thumbnail(best_dims)
 
 
 class SegmentationPipeline:
@@ -242,6 +202,77 @@ class SegmentationPipeline:
         models_list = [i for i in glob.glob(models_dir + '/*.hdf5') if slide_st in i]
         return models_list[0]
 
+
+
+class WSI(openslide.OpenSlide):
+    """ Specific Openslide class for Renal biopsy Whole-Slide Images. """
+    def __init__(self, filename):
+        super().__init__(filename)
+        self.dimensions_thumbnail, self.ss_factor = self._find_lower_thumbnail_dimensions()
+        self.window_reduced_dim = self.find_window_reduced_dim()
+
+    def get_thumbnail(self, size: Optional[Tuple[int, int]] = None):
+        """
+        Overrides get_thumbnail method from openslide.Openslide class.
+        :param size: if None, the lower allowed thumbnail size is automatically computed. Else, call to the original
+         get_thumbnail() method.
+        :return: PIL.Image containing RGB thumbnail. """
+        if size:
+            return super().get_thumbnail(size)
+        else:
+            return self.get_best_thumbnail()
+
+    def _find_lower_thumbnail_dimensions(self):
+        max_level = self.level_count - 1
+        ss_factor = None
+        for level in range(max_level, 1, -1):
+            ss_factor = 2 ** level
+            reduced_dim = params.PATCH_SIZE[0] / ss_factor
+            stride = reduced_dim * const.STRIDE_PTG
+            if math.floor(stride) == stride:
+                break
+
+        level = self.get_best_level_for_downsample(ss_factor)
+        return self.level_dimensions[level], ss_factor
+
+    def find_window_reduced_dim(self):
+        return int(params.PATCH_SIZE[0] / self.ss_factor)
+
+    def get_best_thumbnail(self):
+        best_dims, ss_factor = self._find_lower_thumbnail_dimensions()
+        window_reduced_dim = self.find_window_reduced_dim()
+        return self.get_thumbnail(best_dims)
+
+
+@dataclass
+class ModelData:
+    """
+    Model info structure obtained from model weights filename.
+    Required filename format: <model_name>-<staining>-<resize_ratio>-<date>.hdf5
+    """
+    def __init__(self, model_weights: str):
+        self._fields = os.path.basename(model_weights).split('-')
+        self._weights = model_weights
+
+    @property
+    def weights(self):
+        return self._weights
+
+    @property
+    def name(self):
+        return self._fields[0]
+
+    @property
+    def staining(self):
+        return self._fields[1]
+
+    @property
+    def resize_ratio(self):
+        return int(self._fields[2])
+
+    @property
+    def date(self):
+        return self._fields[3].split('.')[0]
 
 
 

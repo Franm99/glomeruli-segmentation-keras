@@ -80,10 +80,6 @@ def get_coords(im_name, xml_name):
     return p
 
 
-
-
-
-
 if __name__ == '__main__':
     # get_masks()
     coordinates_over_images()

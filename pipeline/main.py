@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.pipeline import SegmentationPipeline
-from src.utils.utils import browse_file
+from src.utils.misc import browse_file
 
 
 def parse_args():

@@ -6,7 +6,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.utils.enums import Staining
 from src.classes.Metrics import Metrics
-from src.utils.utils import EmailHandler
+from src.utils.misc import EmailHandler
 from workflow import WorkFlow
 
 

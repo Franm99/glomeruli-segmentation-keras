@@ -6,10 +6,42 @@ from typing import List, Tuple
 import numpy as np
 import cv2.cv2 as cv2
 from PIL import Image
+from abc import ABC, abstractmethod
+from tensorflow.keras.utils import Sequence
 
 import src.parameters as params
 import src.constants as const
-from src.utils.utils import DataGenerator
+
+
+class DataGenerator(ABC, Sequence):
+    @abstractmethod
+    def __init__(self,
+                 ims_list: List[str],
+                 masks_list: List[str],
+                 batch_size: int,
+                 shuffle: bool,
+                 n_channels: int):
+        self.ims_list = ims_list
+        self.masks_list = masks_list
+        self.batch_size = batch_size
+        self.n_channels = n_channels
+        self.shuffle = shuffle
+
+    @abstractmethod
+    def __len__(self):
+        pass
+
+    @abstractmethod
+    def __getitem__(self, index):
+        pass
+
+    @abstractmethod
+    def on_epoch_end(self):
+        pass
+
+    @abstractmethod
+    def _data_generation(self, ims_list_temp, masks_list_temp):
+        pass
 
 
 class DataGeneratorImages(DataGenerator):

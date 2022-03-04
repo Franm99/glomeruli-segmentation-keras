@@ -1,22 +1,6 @@
 """ Enum classes """
-from enum import Enum, auto, unique
+from enum import Enum, IntEnum, auto, unique
 from strenum import StrEnum
-
-# from src.model import keras_models
-
-
-# class Wrapper:
-#     """ Wrapper class to wrap a specific function. """
-#     def __init__(self, f):
-#         self.f = f
-#
-#     def __call__(self, *args, **kwargs):
-#         return self.f(*args, **kwargs)
-#
-# class Models(Enum):
-#     """ Enum to select the desired network model to train or work with. """
-#     SIMPLE_UNET = Wrapper(keras_models.simple_unet)
-#     # ADD YOUR MODELS HERE
 
 
 @unique
@@ -43,10 +27,29 @@ class MaskType(Enum):
     HANDCRAFTED = auto()  # These masks are always obtained from disk
 
 
-class Size(Enum):
+class Size(IntEnum):
     """ Number of pixels for radii in synthetic mask generation. """
     HUGE = 225
     BIG = 175
-    MEDIUM = 150
+    INTERMEDIATE = 150
     SMALL = 100
 
+
+class GlomeruliClass(IntEnum):
+    # Huge
+    MEMBRANOSO = Size.HUGE.value
+    GNMP = Size.HUGE.value
+    GSSP = Size.HUGE.value
+
+    # Big
+    SANO = Size.BIG.value
+
+    # Intermediate
+    INCOMPLETO = Size.INTERMEDIATE.value
+    SEMILUNAS = Size.INTERMEDIATE.value
+    ISQUEMICO = Size.INTERMEDIATE.value
+    MIXTO = Size.INTERMEDIATE.value
+    ENDOCAPILAR = Size.INTERMEDIATE.value
+
+    # Small
+    ESCLEROSADO = Size.SMALL.value

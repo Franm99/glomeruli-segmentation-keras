@@ -11,7 +11,7 @@ from typing import List, Optional
 import re
 from tensorflow.keras.utils import normalize
 
-from src.utils.utils import find_blobs_centroids
+from src.utils.misc import find_blobs_centroids
 from src.model.model_utils import load_model_weights, get_model
 import src.constants as const
 
