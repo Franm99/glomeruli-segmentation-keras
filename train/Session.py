@@ -28,7 +28,6 @@ class Session:
         if self.send_report:
             self.emailInfo = EmailHandler()
 
-
     def run(self):
         for st in self.staining_list:
             for rs in self.rratio_list:

@@ -1,6 +1,6 @@
+import argparse
 import os
 import sys
-import argparse
 from pathlib import Path
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -12,25 +12,19 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--scale", "-s", type=int, default=16)
     parser.add_argument("--threshold", "-th", type=float, default=0.7)
-    parser.add_argument("--model", "-m", type=str)
     parser.add_argument("--slide", type=str)
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    if not args.model:
-        print("Select model weights to use:")
-        model_file = browse_file()
-    else:
-        model_file = args.model
     if not args.slide:
         print("Select slide to process")
         slide_file = browse_file()
     else:
         slide_file = args.slide
 
-    segmentationPipeline = SegmentationPipeline(model_file)
+    segmentationPipeline = SegmentationPipeline()
     segmentationPipeline.run(slide_file, th=args.threshold)
     prediction = segmentationPipeline.get_scaled_prediction(reduction_factor=args.scale)
     prediction_name = os.path.basename(slide_file).split('.')[0] + f"_mask_s{args.scale}.png"

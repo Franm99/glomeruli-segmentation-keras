@@ -12,6 +12,7 @@ import os
 from skimage.measure import regionprops, label
 from getpass import getpass
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from tensorflow.keras.utils import Sequence
 import smtplib
 import ssl
@@ -21,6 +22,37 @@ from email.mime.base import MIMEBase
 from email import encoders
 
 from src.utils.enums import Size
+
+
+@dataclass
+class ModelData:
+    """
+    Model info structure obtained from model weights filename.
+    Required filename format: <model_name>-<staining>-<resize_ratio>-<date>.hdf5
+    """
+    def __init__(self, model_weights: str):
+        self._fields = os.path.basename(model_weights).split('-')
+        self._weights = model_weights
+
+    @property
+    def weights(self):
+        return self._weights
+
+    @property
+    def name(self):
+        return self._fields[0]
+
+    @property
+    def staining(self):
+        return self._fields[1]
+
+    @property
+    def resize_ratio(self):
+        return int(self._fields[2])
+
+    @property
+    def date(self):
+        return self._fields[3].split('.')[0]
 
 
 class DataGenerator(ABC, Sequence):

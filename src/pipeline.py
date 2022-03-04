@@ -15,14 +15,16 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from tqdm import tqdm
 import time
-from dataclasses import dataclass
 import cv2.cv2 as cv2
 from tensorflow.keras.utils import normalize
 import re
+import glob
 
 import src.parameters as params
 import src.constants as const
 from src.model.model_utils import get_model, load_model_weights
+from src.utils.utils import ModelData
+from src.utils.enums import Staining
 from src.model.keras_models import simple_unet
 
 if platform == "win32":
@@ -33,37 +35,6 @@ if platform == "win32":
             import openslide
 else:
     import openslide
-
-
-@dataclass
-class ModelData:
-    """
-    Model info structure obtained from model weights filename.
-    Required filename format: <model_name>-<staining>-<resize_ratio>-<date>.hdf5
-    """
-    def __init__(self, model_weights: str):
-        self._fields = os.path.basename(model_weights).split('-')
-        self._weights = model_weights
-
-    @property
-    def weights(self):
-        return self._weights
-
-    @property
-    def name(self):
-        return self._fields[0]
-
-    @property
-    def staining(self):
-        return self._fields[1]
-
-    @property
-    def resize_ratio(self):
-        return int(self._fields[2])
-
-    @property
-    def date(self):
-        return self._fields[3].split('.')[0]
 
 
 class WSI(openslide.OpenSlide):
@@ -108,19 +79,21 @@ class WSI(openslide.OpenSlide):
 
 class SegmentationPipeline:
     """ Pipeline to obtain glomeruli segmentation from a renal biopsy Whole-Slide Image. """
-    def __init__(self, model_weights):
+    def __init__(self):
         """
         Initializing class.
         :param model: Pre-trained Keras segmentation model to use.
         """
-        self.model_info = ModelData(model_weights)
-        self.model = self.load_model()
         self.dims = (3200, 3200)
         self.stride_proportion = 1/4
+        self.model_info = None
+        self.model = None
         self.slide = None
         self.prediction = None
 
     def run(self, slide: str, th: float):
+        self.model_info = ModelData(self._select_model_weights(slide))
+        self.model = self.load_model()
         ims_generator = self.preprocess_slide(slide)
         for im, name in tqdm(ims_generator, desc="Generating predictions"):
             pred = self.predict(im, th)
@@ -261,6 +234,15 @@ class SegmentationPipeline:
         x = int(re.search(r'x([0-9]*)', name).group(1))
         y = int(re.search(r'y([0-9]*)', name).group(1))
         return x, y
+
+    def _select_model_weights(self, slide: str) -> str:
+        rex = r'{}'.format('|'.join([i for i in Staining if i != '']))
+        slide_st = re.search(rex, slide).group()
+        models_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
+        models_list = [i for i in glob.glob(models_dir + '/*.hdf5') if slide_st in i]
+        return models_list[0]
+
+
 
 
 # def debugger():
