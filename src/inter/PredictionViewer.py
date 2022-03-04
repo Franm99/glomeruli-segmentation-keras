@@ -11,7 +11,7 @@ from typing import List, Optional
 import re
 from tensorflow.keras.utils import normalize
 
-from src.utils.misc import find_blobs_centroids
+from src.utils.figures import find_blobs_centroids
 from src.model.model_utils import load_model_weights, get_model
 import src.constants as const
 
@@ -60,7 +60,7 @@ class LogFile:
                 setattr(self, fields[0].lower(), fields[1])
 
 
-class Viewer(tk.Frame):
+class PredictionViewer(tk.Frame):
     def __init__(self, output_folder: str, th: Optional[float] = None, from_dir: bool = False):
         # Initialize tkinter interface
         super().__init__()

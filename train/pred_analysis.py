@@ -1,11 +1,11 @@
 """ File to analyze the test set prediction results"""
-from src.utils.interface import Viewer
+from src.inter.PredictionViewer import PredictionViewer
 from src.utils.misc import browse_path
 
 
 def launch_interface(from_dir, th):
     output_path = browse_path()
-    viewer = Viewer(output_folder=output_path, from_dir=from_dir, th=th)
+    viewer = PredictionViewer(output_folder=output_path, from_dir=from_dir, th=th)
     viewer.pack(fill="both", expand=True)
     viewer.mainloop()
 
