@@ -1,11 +1,3 @@
 .idea
+.pytest_cache
 __pycache__
-trash
-
-*.hdf5
-*.png
-!ims/*
-
-source_test.py
-unet_train.py
-mask_workflow.py

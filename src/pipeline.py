@@ -2,7 +2,7 @@
 """
 1. Read WSI
 2. Split into smaller images
-3. Load pre-trained model
+3. Load pre-trained keras
 4. Collect predictions
 5. Assembly WSI mask
 """
@@ -11,7 +11,6 @@ from sys import platform
 import math
 from typing import Tuple, Optional
 import numpy as np
-import matplotlib.pyplot as plt
 from PIL import Image
 from tqdm import tqdm
 import time
@@ -21,11 +20,10 @@ import re
 import glob
 from dataclasses import dataclass
 
-import src.parameters as params
-import src.constants as const
-from src.model.model_utils import get_model, load_model_weights
+import src.utils.parameters as params
+import src.utils.constants as const
+from src.keras.utils import get_model, load_model_weights
 from src.utils.enums import Staining
-from src.model.keras_models import simple_unet
 
 if platform == "win32":
     _dll_path = os.getenv('OPENSLIDE_PATH')  # TODO add README.md guide for Openslide import when using Windows
@@ -42,7 +40,7 @@ class SegmentationPipeline:
     def __init__(self):
         """
         Initializing class.
-        :param model: Pre-trained Keras segmentation model to use.
+        :param keras: Pre-trained Keras segmentation keras to use.
         """
         self.dims = (3200, 3200)
         self.stride_proportion = 1/4
@@ -118,7 +116,7 @@ class SegmentationPipeline:
                     prediction_rs = np.zeros((dim, dim), dtype=np.uint8)
                     # prediction = np.zeros((dim, dim), dtype=np.uint8)
                 else:
-                    # Tissue sub-patches are fed to the U-net model for mask prediction
+                    # Tissue sub-patches are fed to the U-net keras for mask prediction
                     patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE),
                                        interpolation=cv2.INTER_AREA)
                     patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
@@ -247,7 +245,7 @@ class WSI(openslide.OpenSlide):
 @dataclass
 class ModelData:
     """
-    Model info structure obtained from model weights filename.
+    Model info structure obtained from keras weights filename.
     Required filename format: <model_name>-<staining>-<resize_ratio>-<date>.hdf5
     """
     def __init__(self, model_weights: str):
