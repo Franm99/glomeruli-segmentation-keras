@@ -101,10 +101,10 @@ def _get_pred_mask(im, dim, model, th: float):
                 # Tissue sub-patches are fed to the U-net keras for mask prediction
                 patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
                 patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
-                prediction = model.predict(patch_input)[:, :, :, 0]
+                prediction = model._predict(patch_input)[:, :, :, 0]
                 # prediction = prediction[0, :, :]
                 # pass
-                prediction = (model.predict(patch_input)[:, :, :, 0] >= th).astype(np.uint8)
+                prediction = (model._predict(patch_input)[:, :, :, 0] >= th).astype(np.uint8)
                 prediction_rs = cv2.resize(prediction[0], (dim, dim), interpolation=cv2.INTER_AREA)
 
             # pred_masks.append(prediction)

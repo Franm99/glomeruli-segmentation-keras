@@ -120,10 +120,10 @@ class SegmentationPipeline:
                     patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE),
                                        interpolation=cv2.INTER_AREA)
                     patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
-                    prediction = self.model.predict(patch_input)[:, :, :, 0]
+                    prediction = self.model._predict(patch_input)[:, :, :, 0]
                     # prediction = prediction[0, :, :]
                     # pass
-                    prediction = (self.model.predict(patch_input)[:, :, :, 0] >= th).astype(np.uint8)
+                    prediction = (self.model._predict(patch_input)[:, :, :, 0] >= th).astype(np.uint8)
                     prediction_rs = cv2.resize(prediction[0], (dim, dim), interpolation=cv2.INTER_AREA)
 
                 # pred_masks.append(prediction)

@@ -1,8 +1,10 @@
 import argparse
 import os
+from os.path import dirname, abspath
 import sys
 from pathlib import Path
 
+sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
 from src.pipeline import SegmentationPipeline
 from src.utils.misc import browse_file
 

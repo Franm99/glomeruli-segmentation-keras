@@ -526,12 +526,12 @@ class PatchGenerator:
             h, w = im.shape
             for x in range(0, w, self.patch_dim):
                 if x + self.patch_dim >= w:
-                    # if w - x <= self.patch_dim // 5:
+                    # if w - x <= self.resized_img_dim // 5:
                     #     continue
                     x = w - self.patch_dim
                 for y in range(0, h, self.patch_dim):
                     if y + self.patch_dim >= h:
-                        # if h - y <= self.patch_dim // 5:
+                        # if h - y <= self.resized_img_dim // 5:
                         #     continue
                         y = h - self.patch_dim
                     patch_arr = im[y: y + self.patch_dim, x: x + self.patch_dim]
