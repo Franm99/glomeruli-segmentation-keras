@@ -1,5 +1,5 @@
 import time
-from typing import Optional
+from typing import Optional, List
 from tkinter import filedialog
 import os
 from getpass import getpass
@@ -94,6 +94,19 @@ def timer(f):
         return result
 
     return time_dec
+
+
+def list2txt(filename: str, data: List[str]) -> None:
+    """
+    Function to save a list of string values into a txt file.
+
+    :param filename: txt file full path and name
+    :param data: list containing the data to be saved.
+    :return: None
+    """
+    with open(filename, "w") as f:
+        for i in data:
+            f.write(i + "\n")
 
 
 def print_info(msg):

@@ -2,7 +2,8 @@ import csv
 import cv2.cv2 as cv2
 import glob
 import logging
-import matplotlib.pyplot as plt
+
+import keras.callbacks
 import matplotlib
 import numpy as np
 import os
@@ -124,7 +125,7 @@ class Session:
     @staticmethod
     def _init_session_folder(session_folder):
         """
-        *Private method*
+        *Private*
 
         Modify session folder name if an existing session exactly has the same name. It will just happen if
         several sessions has been launched at the same date.
@@ -249,7 +250,7 @@ class Metrics:
 
     def _add_metric(self, key: str, val: Any) -> None:
         """
-        *Private method*
+        *Private*
 
         Adds a new metric to the current experiment if it has not been tracked before. If it
         already exists, a new value is appended to the list of this metric in the current experiment.
@@ -266,7 +267,7 @@ class Metrics:
 
     def _records_to_csv(self, filename: str, label: str) -> None:
         """
-        *Private method*
+        *Private*
 
         Save the metrics records of a given experiment named <*label*> into a csv file named <*filename*>.
 
@@ -282,7 +283,7 @@ class Metrics:
 
     def _get_measures(self, filename: str, label: str) -> None:
         """
-        *Private method*
+        *Private*
 
         For a given experiment named <*label*>, this method computes some common measures (e.g., mean value) for
         the set of metrics tracked for this experiment. Next, measures are exported in csv format to a file named
@@ -324,17 +325,24 @@ class WorkFlow:
     Functionalities
     ---------------
 
+    Launch
+    ~~~~~~
+
+    Launch automatically the whole training process with the following stages sequence:
+        1. Preprocess training-test data
+        2. Training and validation stages
+        3. Testing stage
+        4. Report training log
     """
 
     if not os.path.isdir(const.TRAIN_REPORTS_PATH):
         os.mkdir(const.TRAIN_REPORTS_PATH)
 
     def __init__(self, staining: Staining, resize_ratio: int, session_folder: str):
-        """
-        *Class constructor*
+        """ *Class constructor*
 
         :param staining: staining value: HE, PAS, PM are currently allowed.
-        :param resize_ratio: resize ratio for unet input.
+        :param resize_ratio: resize ratio for U-net input.
         :param session_folder: directory where the training report has to be saved.
         """
         self.staining = staining
@@ -349,99 +357,189 @@ class WorkFlow:
         self._masks_path = os.path.join(const.SEGMENTER_DATA_PATH, "gt", "masks")
 
         # Initialize logger
-        self.logger = None
+        self.logger: logging.Logger
         self.log_handler = logging.NullHandler()
         self._init_logger()
 
-        # Initialize report folder
-        self.log_name = None
-        self.output_folder_path = None
-        self.weights_path = None
-        self.val_prediction_path = None
-        self.test_prediction_path = None
-        self.logs_path = None
-        self.tmp_folder = None
-        self.patches_tmp_path = None
-        self.patches_masks_tmp_path = None
+        # Initialize report folder and path fields
+        self.log_name: str
+        self.output_folder_path: str
+        self.weights_path: str
+        self.test_prediction_path: str
+        self.logs_path: str
+        self.tmp_folder: str
+        self.patches_tmp_path: str
+        self.patches_masks_tmp_path: str
         self._init_report_folder()
 
-        # Initialize instance attributes
+        # Initialize instance fields
         self._results = dict()
-        self._log_filename = None
-        self._exec_time = None
+        self._log_filename = ""
+        self._exec_time = 0.0
 
-    def launch(self):
+    def _init_logger(self) -> None:
+        """
+        *Private*
+
+        Initialize logger object so the whole process can be tracked and later saved into a log file.
+
+        **Check** the `logging module docs <https://docs.python.org/3/library/logging.html>`_ for further info.
+
+        :return: None
+        """
+        logging.basicConfig(handlers=[logging.NullHandler()], level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+
+    def _init_report_folder(self):
+        """
+        *Private*
+
+        Initialize directory where output files will be saved for an specific test bench execution.
+
+        :return: None
+        """
+        # Output log folder named with the current date
+        self.log_name = time.strftime("%d-%m-%Y_%H-%M-%S")
+        self.output_folder_path = os.path.join(self.session_folder, self.log_name)
+        os.mkdir(self.output_folder_path)
+
+        # Folder to save training weights
+        self.weights_path = os.path.join(self.output_folder_path, 'weights')
+        os.mkdir(self.weights_path)
+
+        # Testing predictions should be saved for later analysis.
+        self.test_prediction_path = os.path.join(self.output_folder_path, 'test_pred')
+        os.mkdir(self.test_prediction_path)
+
+        # Folder to save the metrics values for each epoch (useful to build figures)
+        self.logs_path = os.path.join(self.output_folder_path, 'logs')
+        os.mkdir(self.logs_path)
+
+        # Folder to temporally save generated patches. Later, this folder will be cleared to avoid memory issues.
+        self.tmp_folder = os.path.join(self.output_folder_path, 'tmp')
+        os.mkdir(self.tmp_folder)
+        self.patches_tmp_path = os.path.join(self.tmp_folder, 'patches')
+        os.mkdir(self.patches_tmp_path)
+        self.patches_masks_tmp_path = os.path.join(self.tmp_folder, 'patches_masks')
+        os.mkdir(self.patches_masks_tmp_path)
+
+        # A logger handler is needed for a new workflow process
+        self.log_handler = logging.FileHandler(filename=os.path.join(self.output_folder_path, "console.log"))
+        formatter = logging.Formatter('[%(asctime)s] %(funcName)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+        self.log_handler.setFormatter(formatter)
+        self.logger.addHandler(self.log_handler)
+
+        # This messages will be redirected to a log file, instead of a OS console or IDE console
+        self.logger.info("########## CONFIGURATION ##########")
+        self.logger.info("Staining:       {}".format(self.staining))
+        self.logger.info("Resize ratio:   {}".format(self.resize_ratio))
+
+    def launch(self) -> None:
+        """ Method to launch the whole training process.
+
+        :return: None
+        """
         ts = time.time()
-        # 2. Preparing data
-        xtrainval, xtest, ytrainval, ytest = self._preprocess_data()
-        # 3. Training stage
-        history = self._train(xtrainval, ytrainval)
-        # 4. Testing stage
-        estimated_accuracy = self._test(xtest, ytest)
-        # 5. Saving results to output folder and clearing the keras variable
-        # self._save_results(history)
-        self._log_file = self._save_train_log(history, estimated_accuracy)
-        del self.model
-        # 6. If specified, send output info via e-mail
+        # 1. Preprocess data, spliting into training+validation and test sets.
+        x_train_val, x_test, y_train_val, y_test = self._preprocess_data()
+        # 2. Training stage: compute model weights and save training history
+        history = self._train(x_train_val, y_train_val)
+        # 3. Testing stage: do an accuracy estimation from a simple ground-truth and prediction comparison
+        estimated_accuracy = self._test(x_test, y_test)
+        # 4. Save results
+        self._log_filename = self._save_train_log(history, estimated_accuracy)
         self._exec_time = time.time() - ts
-        # Clear log handlers
+
+        # It is a good practice to clean some variables before finishing
+        del self.model
         self.logger.handlers = [logging.NullHandler()]
 
-    def _preprocess_data(self):
+    def _preprocess_data(self) -> Tuple[List[str], List[str], List[str], List[str]]:
+        """ Split the dataset into training and test. The training set is itself composed of the training and
+        validation data.
+
+        :return: Lists of the whole path (as string values) of the whole data contained into the training and test sets,
+            both including the data (x) and their labels (y).
+        """
         self.logger.info("\n########## DATASET INFO ##########")
         dataset_ims = dataset.DatasetImages(self.staining, balance=params.BALANCE_STAINING)
-        xtrainval, xtest, ytrainval, ytest = dataset_ims.split_train_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
-        self.logger.info("Train-Validation:          {} images".format(len(xtrainval)))
-        self.logger.info("Test:                      {} images".format(len(xtest)))
-        return xtrainval, xtest, ytrainval, ytest
+        x_train_val, x_test, y_train_val, y_test = dataset_ims.split_train_test(
+                                                            train_size=params.TRAINVAL_TEST_SPLIT_RATE)
+        self.logger.info("Train-Validation:          {} images".format(len(x_train_val)))
+        self.logger.info("Test:                      {} images".format(len(x_test)))
+        return x_train_val, x_test, y_train_val, y_test
 
-    def _train(self, xtrainval, ytrainval):
-        """ Execute the training stage """
+    def _train(self, x_train_val: List[str], y_train_val: List[str]) -> keras.callbacks.History:
+        """
+        *Private*
+
+
+        Workflow training stage:
+            1. Build data generators to avoid loading the whole set of data into memory (not recommended [#f1]_).
+
+            2. Temporally save in disk the generated patches from the original images
+
+            3. Split data into training and validation sets.
+
+            4. Build data generators for each set to feed the model.
+
+            5. Fit the model to the given data and export the results as a Keras history [#f2]_.
+
+        :param x_train_val: list of names referring to the train+validation set of images.
+        :param y_train_val: list of names referring to the train+validation set of masks (labels).
+        :return: training history (results).
+
+        .. [#f1] `How to use data generators with Keras
+         <https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly>`_
+
+        .. [#f2] `Keras history object
+         <https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/History>`_
+        """
         # Use generator for train+val images to avoid RAM excessive usage
-        dataGenImages = dataset.DataGeneratorImages(xtrainval, ytrainval, shuffle=False,
-                                                    augmentation=params.DATA_CLONING)
+        data_generator_images = dataset.DataGeneratorImages(x_train_val, y_train_val, shuffle=False,
+                                                            augmentation=params.DATA_CLONING)
         self.logger.info("Batch size:               {}".format(params.BATCH_SIZE))
-        self.logger.info("Num of batches:           {}".format(len(dataGenImages)))
+        self.logger.info("Num of batches:           {}".format(len(data_generator_images)))
         self.logger.info("--------------------------------")
 
-        # PatchGenerator object can be reused for each images batch.
-        patchGenerator = dataset.PatchGenerator(patch_dim=self.resized_img_dim,
-                                                squared_dim=const.UNET_INPUT_SIZE,
-                                                filter=params.FILTER_SUBPATCHES)
+        # PatchGenerator object can be reused for each batch of images.
+        patch_generator = dataset.PatchGenerator(patch_dim=self.resized_img_dim,
+                                                 squared_dim=const.UNET_INPUT_SIZE,
+                                                 filter=params.FILTER_SUBPATCHES)
 
-        # Patches are saved in a tmp directory, so a new DataGenerator can be set up for the training stage.
-        # Once the iteraton finishes, the tmp directory is deleted to avoid unnecessary memory usage.
-        for ims_batch, masks_batch in tqdm(dataGenImages, desc="Getting patches from image batches"):
-            patches, patches_masks, patches_names = patchGenerator.generate(ims_batch, masks_batch)
-            self.__save_imgs_list(self.patches_tmp_path, patches, patches_names)
-            self.__save_imgs_list(self.patches_masks_tmp_path, patches_masks, patches_names)
+        # Patches are saved in a temporal directory, so a new DataGenerator can be set up for the training stage.
+        # Once the iteration finishes, the tmp directory is deleted to avoid excessive memory usage.
+        for ims_batch, masks_batch in tqdm(data_generator_images, desc="Getting patches from image batches"):
+            patches, patches_masks, patches_names = patch_generator.generate(ims_batch, masks_batch)
+            self.__save_patches_list(self.patches_tmp_path, patches, patches_names)
+            self.__save_patches_list(self.patches_masks_tmp_path, patches_masks, patches_names)
 
-        datasetPatches = dataset.DatasetPatches(self.tmp_folder)
-        self.logger.info("Num of generated patches: {}".format(len(datasetPatches.patches_list)))
+        dataset_patches = dataset.DatasetPatches(self.tmp_folder)
+        self.logger.info("Num of generated patches: {}".format(len(dataset_patches.patches_list)))
 
         # Train - Validation split
-        xtrain, xval, ytrain, yval = train_test_split(datasetPatches.patches_list, datasetPatches.patches_masks_list,
-                                                      train_size=params.TRAIN_SIZE)
-        self.logger.info("Patches for training:     {}".format(len(xtrain)))
-        self.logger.info("Patches for validation:   {}".format(len(xval)))
+        x_train, x_val, y_train, y_val = train_test_split(dataset_patches.patches_list,
+                                                          dataset_patches.patches_masks_list,
+                                                          train_size=params.TRAIN_SIZE)
+        self.logger.info("Patches for training:     {}".format(len(x_train)))
+        self.logger.info("Patches for validation:   {}".format(len(x_val)))
 
         # Preparing dataset for the training stage. Patches are normalized to a (0,1) tensor format.
-        train_dataGen = dataset.DataGeneratorPatches(xtrain, ytrain)
-        val_dataGen = dataset.DataGeneratorPatches(xval, yval)
-        # dataGenPatches = DataGeneratorPatches(datasetPatches.patches_list, datasetPatches.patches_masks_list)
+        train_data_generator = dataset.DataGeneratorPatches(x_train, y_train)
+        val_data_generator = dataset.DataGeneratorPatches(x_val, y_val)
 
         self.logger.info("\n########## MODEL: {} ##########".format(params.KERAS_MODEL))
         self.model, callbacks = self.__prepare_model()
 
-        # 3. TRAINING AND VALIDATION STAGE
         self.logger.info("\n########## TRAINING AND VALIDATION STAGE ##########")
         self.logger.info("Initial num of epochs:    {}".format(params.EPOCHS))
         self.logger.info("Batch size:               {}".format(params.BATCH_SIZE))
         self.logger.info("Early Stopping patience:  {}".format(params.ES_PATIENCE))
         self.logger.info("--------------------------------")
 
-        history = self.model.fit(train_dataGen,
-                                 validation_data=val_dataGen,
+        # Refer to model.fit docs for further info: https://www.tensorflow.org/api_docs/python/tf/keras/Model#fit
+        history = self.model.fit(train_data_generator,
+                                 validation_data=val_data_generator,
                                  epochs=params.EPOCHS,
                                  shuffle=False,
                                  verbose=1,
@@ -450,21 +548,44 @@ class WorkFlow:
         self.__save_model()
 
         if params.CLEAR_DATA:
-            datasetPatches.clear()
+            dataset_patches.clear()
 
         return history
 
-    def _test(self, xtest, ytest):
+    def _test(self, x_test: List[str], y_test: List[str]) -> float:
+        """
+        *Private*
+
+        Workflow testing stage:
+            1. Load test set.
+
+            2. Get test predictions.
+
+            3. Estimate the prediction accuracy over the test set
+
+        :param x_test: list of names referring to the test images.
+        :param y_test: list of names referring to the test masks (labels).
+        :return: estimated prediction accuracy.
+        """
         self.logger.info("\n########## TESTING STAGE ##########")
-        testData = dataset.DatasetTest(xtest, ytest)
-        test_predictions = self.__predict(testData)
-        estimated_accuracy = self.__compute_metrics(test_predictions, ytest)
+        test_data = dataset.DatasetTest(x_test, y_test)
+        test_predictions = self.__predict(test_data)
+        estimated_accuracy = self.__compute_metrics(test_predictions, y_test)
         self.logger.info("Accuracy:                 {}".format(estimated_accuracy))
         return estimated_accuracy
 
-    def _save_train_log(self, history, estimated_accuracy) -> str:
-        log_fname = os.path.join(self.output_folder_path, self.log_name.replace("-", "") + '.txt')
-        with open(log_fname, 'w') as f:
+    def _save_train_log(self, history: keras.callbacks.History, estimated_accuracy: float) -> str:
+        """
+        *Private*
+
+        Write and save the training log report.
+
+        :param history: training keras history object.
+        :param estimated_accuracy: estimated prediction accuracy.
+        :return: training log report filename.
+        """
+        log_filename = os.path.join(self.output_folder_path, self.log_name.replace("-", "") + '.txt')
+        with open(log_filename, 'w') as f:
             # Write parameters used
             f.write("-- PARAMETERS --\n")
             f.write('STAINING               {}\n'.format(self.staining))
@@ -482,29 +603,102 @@ class WorkFlow:
             f.write("--------------------------------------\n")
             # Write training results
             f.write('-- TRAINING RESULTS --\n')
-            self.__save_results(history, estimated_accuracy)
+            self.__save_train_metrics(history, estimated_accuracy)
             loss = self._results[MetricsEnum.LOSS]
             num_epochs = self._results[MetricsEnum.EPOCHS]
             f.write('TRAINING_LOSS          {}\n'.format(str(loss)))
             f.write('NUM_EPOCHS             {}\n'.format(str(num_epochs)))
             f.write('APROX_HIT_PCTG         {}\n'.format(str(estimated_accuracy)))
-        return log_fname
+        return log_filename
 
-    def __predict(self, test_data: dataset.DatasetTest, th: float = params.PREDICTION_THRESHOLD):
+    def __prepare_model(self) -> Tuple[keras.Model, List[Any]]:
+        """
+        *Private*
+
+        Prepare the Keras U-Net model:
+            1. Get a pre-defined keras model structure.
+
+            2. Prepare the list of callback functions to use [#f3]_.
+
+        :return: Tuple containing a Keras model (no weights computed yet) and a list of Keras Callback functions.
+
+        .. [#f3] `Available Callbacks for a Keras model <https://keras.io/api/callbacks/>`_
+        """
+        model = get_model(params.KERAS_MODEL)
+        weights_backup = self.weights_path + '/ckpt.hdf5'
+        checkpoint_cb = cb.ModelCheckpoint(filepath=weights_backup,  # TODO: change monitored metric to IoU
+                                           verbose=1, save_best_only=True)
+        early_stopping_cb = cb.EarlyStopping(monitor=params.MONITORED_METRIC, patience=params.ES_PATIENCE)
+        callbacks = [checkpoint_cb, early_stopping_cb]  # These callbacks are always used
+
+        if params.SAVE_TRAIN_HISTORY:
+            csv_logger_cb = cb.CSVLogger(os.path.join(self.logs_path, 'log.csv'), separator=',', append=False)
+            callbacks.append(csv_logger_cb)
+
+        if params.ACTIVATE_REDUCELR:
+            reduce_lr_cb = cb.ReduceLROnPlateau(monitor='val_loss', patience=params.REDUCELR_PATIENCE)
+            callbacks.append(reduce_lr_cb)
+
+        self.logger.info("Model callback functions for training:")
+        self.logger.info("Checkpoint saver:   {}".format("Yes"))
+        self.logger.info("EarlyStopping:      {}".format("Yes"))
+        self.logger.info("Train history saver:{}".format("Yes" if params.SAVE_TRAIN_HISTORY else "No"))
+        return model, callbacks
+
+    def __save_model(self) -> None:
+        """
+        *Private*
+
+        Save to disk the weights computed for a specific Keras model in ``*.hdf5`` format. The weights filename gets the
+        following naming structure:
+
+        ``<keras_model>-<staining>-<resize_ratio>-<date>.hdf5``
+
+        :return: None
+        """
+        name = f"{params.KERAS_MODEL}-{self.staining}-{self.resize_ratio}-{self.log_name.replace('-', '')}.hdf5"
+        weights_file = os.path.join(self.weights_path, name)
+        ckpt_file = os.path.join(self.weights_path, "ckpt.hdf5")
+        # Chckpoint weights saved during the training process are no longer needed.
+        if os.path.isfile(ckpt_file):
+            os.remove(ckpt_file)
+        self.logger.info("Final weights saved to {}".format(weights_file))
+        self.model.save(weights_file)
+
+    def __predict(self, test_data: dataset.DatasetTest, th: float = params.PREDICTION_THRESHOLD) -> List[np.ndarray]:
+        """
+        *Private*
+
+        Method to make predictions over a test set for a given model and an specific binarization threshold. The
+        binarization threshold si applied to the model output.
+
+        :param test_data: test set.
+        :param th: binarization threshold.
+        :return: List of predictions in numpy array format.
+        """
         predictions = []
         for im, mask, name in test_data:
-            prediction = self.get_pred_mask(im, th) * 255  # bool to uint8 casting
+            prediction = self.__get_prediction_mask(im, th) * 255  # bool to uint8 casting
             predictions.append(prediction)
             im_path = os.path.join(self.test_prediction_path, name)
             cv2.imwrite(im_path, prediction)
         return predictions
 
-    def get_pred_mask(self, im, th):
+    def __get_prediction_mask(self, im: np.ndarray, th: float) -> np.ndarray:
+        """
+        *Private*
+
+        Get the prediction mask for a given **grayscale** image using a pre-trained Keras model.
+
+        :param im: image to take prediction from.
+        :param th: binarization threshold to apply to the model output.
+        :return: binary prediction mask
+        """
         [h, w] = im.shape
         # Initializing list of masks
         mask = np.zeros((h, w), dtype=bool)
 
-        # Loop through the whole in both dimensions
+        # Loop through the whole image in both dimensions avoiding overflow.
         for x in range(0, w, self.resized_img_dim):
             if x + self.resized_img_dim >= w:
                 x = w - self.resized_img_dim
@@ -514,7 +708,7 @@ class WorkFlow:
                 # Get sub-patch in original size
                 patch = im[y:y + self.resized_img_dim, x:x + self.resized_img_dim]
 
-                # Median filter applied on image histogram to discard non-tissue sub-patches
+                # Median filter applied to image histogram to discard non-tissue sub-patches
                 counts, bins = np.histogram(patch.flatten(), list(range(256 + 1)))
                 counts.sort()
                 median = np.median(counts)
@@ -530,182 +724,49 @@ class WorkFlow:
                     prediction_rs = cv2.resize(prediction[0], (self.resized_img_dim, self.resized_img_dim),
                                                interpolation=cv2.INTER_AREA)
 
-                    # Final mask is composed by the sub-patches masks (boolean array)
+                # The resulting mask is composed by the sub-patches masks (boolean array).
                 mask[y:y + self.resized_img_dim, x:x + self.resized_img_dim] = \
-                    np.logical_or(mask[y:y + self.resized_img_dim, x:x + self.resized_img_dim], prediction_rs.astype(bool))
-        return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
+                    np.logical_or(mask[y:y + self.resized_img_dim, x:x + self.resized_img_dim], 
+                                  prediction_rs.astype(bool))
+        return mask.astype(np.uint8)  # bool to np.uint8 casting
 
-    def _init_logger(self):
-        logging.basicConfig(handlers=[logging.NullHandler()], level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
-
-    def _init_report_folder(self):
+    def __save_train_metrics(self, history: keras.callbacks.History, estimated_accuracy: float) -> None:
         """
-        Initialize directory where output files will be saved for an specific test bench execution.
+        *Private*
+
+        Save the most relevant metrics to a results variable to be exported.
+
+        :param history: history of results from the training process.
+        :param estimated_accuracy: computed estimated prediction accuracy over a testing set.
         :return: None
         """
-        # Output log folder
-        self.log_name = time.strftime("%d-%m-%Y_%H-%M-%S")
-        self.output_folder_path = os.path.join(self.session_folder, self.log_name)
-        os.mkdir(self.output_folder_path)
+        loss = history.history['loss']
+        num_epochs = len(history.history['loss'])
 
-        # Weights saved for later usage
-        self.weights_path = os.path.join(self.output_folder_path, 'weights')
-        os.mkdir(self.weights_path)
+        # If new metrics are added in future versions, modify MetricsEnum enumerator.
+        self._results[MetricsEnum.LOSS] = loss[-1]
+        self._results[MetricsEnum.ACCURACY] = estimated_accuracy
+        self._results[MetricsEnum.EPOCHS] = num_epochs
+        self._results[MetricsEnum.FOLDER] = self.log_name
 
-        # Validation and test predictions might be subsequently analyzed, so they are saved into disk.
-        self.val_prediction_path = os.path.join(self.output_folder_path, 'val_pred')
-        os.mkdir(self.val_prediction_path)
-        self.test_prediction_path = os.path.join(self.output_folder_path, 'test_pred')
-        os.mkdir(self.test_prediction_path)
-
-        # If a log system (Tensorboard) is used, its output can be helpful for later analysis
-        self.logs_path = os.path.join(self.output_folder_path, 'logs')
-        os.mkdir(self.logs_path)
-
-        # With reproducibility purposes, training, validation and test sets will be saved
-        self.tmp_folder = os.path.join(self.output_folder_path, 'tmp')
-        os.mkdir(self.tmp_folder)
-        self.patches_tmp_path = os.path.join(self.tmp_folder, 'patches')
-        os.mkdir(self.patches_tmp_path)
-        self.patches_masks_tmp_path = os.path.join(self.tmp_folder, 'patches_masks')
-        os.mkdir(self.patches_masks_tmp_path)
-
-        # Create logger for saving console info
-        self.log_handler = logging.FileHandler(filename=os.path.join(self.output_folder_path, "console.log"))
-        formatter = logging.Formatter('[%(asctime)s] %(funcName)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
-        self.log_handler.setFormatter(formatter)
-        self.logger.addHandler(self.log_handler)
-
-        # Displaying iteration info before start the training process
-        self.logger.info("########## CONFIGURATION ##########")
-        self.logger.info("Staining:       {}".format(self.staining))
-        self.logger.info("Resize ratio:   {}".format(self.resize_ratio))
-
-    def _prepare_data(self, dataset: dataset.Dataset, resize_ratio: int) -> Tuple:
-        self.logger.info("First split: Training+Validation & Testing split:")
-        xtrainval, xtest_p, ytrainval, ytest_p = dataset.split_trainval_test(train_size=params.TRAINVAL_TEST_SPLIT_RATE)
-        self.list2txt(os.path.join(self.output_folder_path, 'test_list.txt'), [os.path.basename(i) for i in xtest_p])
-
-        self.logger.info("LOADING DATA FROM DISK FOR PROCEEDING TO TRAINING AND TEST:")
-        self.logger.info("Loading images from: {}".format(self._ims_path))
-        self.logger.info("Loading masks from: {}".format(self._masks_path))
-        self.logger.info("Training and Validation:")
-        ims, masks = dataset.load_pairs(xtrainval, ytrainval)
-
-        self.logger.info("Testing:")
-        xtest_list, ytest_list = dataset.load_pairs(xtest_p, ytest_p)
-
-        self.logger.info("DATA PREPROCESSING FOR TRAINING.")
-        patches_ims, patches_masks = dataset.get_spatches(ims, masks, rz_ratio=resize_ratio,
-                                                          filter_spatches=params.FILTER_SUBPATCHES)
-
-        # self.logger.info("Images and labels (masks) prepared for training. Tensor format: (N, W, H, CH)")
-        self.logger.info("Second split: Training & Validation split:")
-        xtrain, xval, ytrain, yval = dataset.split_train_val(patches_ims, patches_masks)
-
-        # train & val sets are returned as ndarray tensors, ready to be used as input for the U-Net, while test set is a
-        # list. It will be processed in the TEST stage.
-        xtrain_tensor, ytrain_tensor = self._normalize(xtrain, ytrain)
-        xval_tensor, yval_tensor = self._normalize(xval, yval)
-        return xtrain_tensor, xval_tensor, xtest_list, ytrain_tensor, yval_tensor, ytest_list
-
-    def __prepare_model(self):
-        model = get_model(params.KERAS_MODEL)
-        weights_backup = self.weights_path + '/ckpt.hdf5'
-        checkpoint_cb = cb.ModelCheckpoint(filepath=weights_backup,  # TODO: change monitored metric to IoU
-                                           verbose=1, save_best_only=True)
-        earlystopping_cb = cb.EarlyStopping(monitor=params.MONITORED_METRIC, patience=params.ES_PATIENCE)
-        callbacks = [checkpoint_cb, earlystopping_cb]  # These callbacks are always used
-
-        if params.SAVE_TRAIN_HISTORY:
-            csvlogger_cb = cb.CSVLogger(os.path.join(self.logs_path, 'log.csv'), separator=',', append=False)
-            callbacks.append(csvlogger_cb)
-
-        if params.ACTIVATE_REDUCELR:
-            reducelr_cb = cb.ReduceLROnPlateau(monitor='val_loss', patience=params.REDUCELR_PATIENCE)
-            callbacks.append(reducelr_cb)
-
-        self.logger.info("Model callback functions for training:")
-        self.logger.info("Checkpoint saver:   {}".format("Yes"))
-        self.logger.info("EarlyStopping:      {}".format("Yes"))
-        self.logger.info("Train history saver:{}".format("Yes" if params.SAVE_TRAIN_HISTORY else "No"))
-        return model, callbacks
-
-    def __save_model(self):
-        name = f"{params.KERAS_MODEL}-{self.staining}-{self.resize_ratio}-{self.log_name.replace('-', '')}.hdf5"
-        weights_file = os.path.join(self.weights_path, name)
-        ckpt_file = os.path.join(self.weights_path, "ckpt.hdf5")
-        if os.path.isfile(ckpt_file):
-            os.remove(ckpt_file)
-        self.logger.info("Final weights saved to {}".format(weights_file))
-        self.model.save(weights_file)
-
-    def _prepare_test(self, ims, ims_names, model, resize_ratio):
-        predictions = []
-        org_size = int(const.UNET_INPUT_SIZE * resize_ratio)
-        for im, im_name in tqdm(zip(ims, ims_names), total=len(ims), desc="Test predictions"):
-            pred = self._get_pred_mask(im, org_size, model, th=params.PREDICTION_THRESHOLD)
-            predictions.append(pred)
-            im_path = os.path.join(self.test_prediction_path, im_name)
-            # OpenCV works with [0..255] range. pred is in [0..1] format. It might be changed before save.
-            cv2.imwrite(im_path, pred * 255)
-        return predictions
-
+    """ STATIC """
     @staticmethod
-    def _get_pred_mask(im, dim, model, th: float):
-        """ """
-        [h, w] = im.shape
-        # Initializing list of masks
-        mask = np.zeros((h, w), dtype=bool)
+    def __save_patches_list(dir_path: str, im_list: List[np.ndarray],
+                            names_list: List[str], full_path_names: bool = False) -> None:
+        """
+        *Private*
 
-        # Loop through the whole in both dimensions
-        for x in range(0, w, dim):
-            if x + dim >= w:
-                x = w - dim
-            for y in range(0, h, dim):
-                if y + dim >= h:
-                    y = h - dim
-                # Get sub-patch in original size
-                patch = im[y:y + dim, x:x + dim]
+        Save a list of patches (portions of original images) to disk.
 
-                # Median filter applied on image histogram to discard non-tissue sub-patches
-                counts, bins = np.histogram(patch.flatten(), list(range(256 + 1)))
-                counts.sort()
-                median = np.median(counts)
-                if median <= 3.:
-                    # Non-tissue sub-patches automatically get a null mask
-                    prediction_rs = np.zeros((dim, dim), dtype=np.uint8)
-                else:
-                    # Tissue sub-patches are fed to the U-net keras for mask prediction
-                    patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE),
-                                       interpolation=cv2.INTER_AREA)
-                    patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
-                    prediction = (model.predict(patch_input)[:, :, :, 0] > th).astype(np.uint8)
-                    prediction_rs = cv2.resize(prediction[0], (dim, dim), interpolation=cv2.INTER_AREA)
-
-                    # Final mask is composed by the sub-patches masks (boolean array)
-                mask[y:y + dim, x:x + dim] = np.logical_or(mask[y:y + dim, x:x + dim], prediction_rs.astype(bool))
-        return mask.astype(np.uint8)  # Change datatype from np.bool to np.uint8
-
-    @staticmethod
-    def __compute_metrics(preds, masks_names):
-        gt_count = 0
-        # pred_count = 0  # TODO add pre-processing stage to compute estimated precision
-        counter = 0
-        for pred, mask_name in zip(preds, masks_names):
-            mask = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
-            centroids = find_blobs_centroids(mask)
-            for (cy, cx) in centroids:
-                gt_count += 1
-                counter += 1 if pred[cy, cx] else 0
-        return (counter / gt_count) * 100  # Percentage
-
-    @staticmethod
-    def __save_imgs_list(dir_path: str, imgs_list: List[np.ndarray],
-                       names_list: List[str], full_path_names: bool = False):
+        :param dir_path: directory path where the txt file must be saved.
+        :param im_list: list of images that are pretended to be saved.
+        :param names_list: list of names that will be attached to the images.
+        :param full_path_names: if True, names_list is expected to contain the whole filename path for each image. if
+         False, it is expected to contain just their basenames.
+        :return: None
+        """
         filenames_list = list()
-        for im, name in zip(imgs_list, names_list):
+        for im, name in zip(im_list, names_list):
             if full_path_names:
                 filename = name
             else:
@@ -713,121 +774,52 @@ class WorkFlow:
                 filenames_list.append(filename)
             cv2.imwrite(filename=filename, img=im)
 
-    def _save_results(self, history):
-        loss = history.history['loss']
-        epochs = range(1, len(loss) + 1)
-        plt.figure()
-        plt.plot(epochs, loss, 'y', label="Training_loss")
-        plt.title("[{}] Training and validation loss".format(self.log_name))
-        plt.xlabel("Epochs")
-        plt.ylabel("Loss")
-        plt.legend()
-        plt.savefig(os.path.join(self.output_folder_path, "loss.png"))
-        self.logger.info("Training loss")
-        self.logger.info("- {}".format(os.path.join(self.output_folder_path, "loss.png")))
-        # self.logger.info("- {}".format(os.path.join(self.output_folder_path, "acc.png")))
-
-    # @staticmethod
-    # def compute_IoU(xtest, ytest, keras, th: float = params.PREDICTION_THRESHOLD):
-    #     ypred = keras.predict(xtest)
-    #     ypred_th = ypred > th
-    #     intersection = np.logical_and(ytest, ypred_th)
-    #     union = np.logical_or(ytest, ypred_th)
-    #     iou_score = np.sum(intersection) / np.sum(union)
-    #     return iou_score
-
-    def _save_val_predictions(self, xval, yval, model):
-        for i, (im, mask) in enumerate(zip(xval, yval)):
-            val_img_norm = im[:, :, 0][:, :, None]
-            val_img_input = np.expand_dims(val_img_norm, 0)
-            pred = (model.predict(val_img_input)[0, :, :, 0] > params.PREDICTION_THRESHOLD).astype(np.uint8)
-            plt.figure()
-            plt.subplot(131)
-            plt.imshow(im, cmap="gray")
-            plt.title('image')
-            plt.subplot(132)
-            plt.imshow(mask, cmap="gray")
-            plt.title('gt')
-            plt.subplot(133)
-            plt.imshow(pred, cmap="gray")
-            plt.title('pred')
-            val_pred_path = os.path.join(self.val_prediction_path, str(i) + '.png')
-            plt.savefig(val_pred_path)
-            plt.close()
-
-    def __save_results(self, history, estimated_accuracy):
-        """
-        If more metrics are computed in future versions, just modify the results' dictionary adding more fields
-        """
-        loss = history.history['loss']
-        num_epochs = len(history.history['loss'])
-
-        self._results[MetricsEnum.LOSS] = loss[-1]
-        self._results[MetricsEnum.ACCURACY] = estimated_accuracy
-        self._results[MetricsEnum.EPOCHS] = num_epochs
-        self._results[MetricsEnum.FOLDER] = self.log_name
-
-    def _save_spatches(self, x: List[np.ndarray], y: List[np.ndarray], dir_path: str):
-        ims_path = os.path.join(dir_path, "ims")
-        os.mkdir(ims_path)
-        masks_path = os.path.join(dir_path, "masks")
-        os.mkdir(masks_path)
-
-        max_num = len(str(len(x))) + 1
-        names = []
-        self.logger.info("Savinng images and masks: {}".format(dir_path))
-        for idx, (im, mask) in tqdm(enumerate(zip(x, y)), total=len(x), desc="Saving images"):
-            bname = str(idx).zfill(max_num) + ".png"
-            names.append(bname)
-            cv2.imwrite(os.path.join(ims_path, bname), im)
-            cv2.imwrite(os.path.join(masks_path, bname), mask)
-
     @staticmethod
-    def _normalize(ims: List[np.ndarray], masks: List[np.ndarray]):
+    def __compute_metrics(predictions: List[np.ndarray], masks_names: List[str]) -> float:
         """
-        Method to convert pairs of images and masks to the expected format as input for the segmentator keras.
-        :param ims: list of images in numpy ndarray format, range [0..255]
-        :param masks: list of masks in numpy ndarray format, range [0..255]
-        :return: tuple with normalized sets: (BATCH_SIZE, W, H, CH) and range [0..1]
-        """
-        ims_t = np.expand_dims(normalize(np.array(ims), axis=1), 3)
-        masks_t = np.expand_dims((np.array(masks)), 3) / 255
-        return ims_t, masks_t
+        *Private*
+        
+        Makes an estimation of the prediction accuracy based on a comparison between the ground-truth masks and the
+        predicted ones.
 
-    @staticmethod
-    def list2txt(fname: str, data: List[str]) -> None:
+        :param predictions: list of prediction masks obtained from the test set.
+        :param masks_names: list of names referring to the ground-truth masks (same order as predictions images is
+         expected).
+        :return: estimated prediction accuracy.
         """
-        Method to save a list of strings to a txt file.
-        :param fname: txt file full path
-        :param data: list containing the data to save in file
-        :return: None
-        """
-        with open(fname, 'w') as f:
-            for i in data:
-                f.write(i + "\n")
+        gt_count = 0
+        # pred_count = 0  # TODO add pre-processing stage to compute estimated precision
+        counter = 0
+        for prediction, mask_name in zip(predictions, masks_names):
+            mask = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
+            centroids = find_blobs_centroids(mask)
+            for (cy, cx) in centroids:
+                gt_count += 1
+                counter += 1 if prediction[cy, cx] else 0
+        return (counter / gt_count) * 100  # Percentage
 
+    """ PROPERTY """
     @property
     def results(self):
+        """ Training resulting metrics. """
         return self._results
 
     @property
-    def report_folder(self):
-        return self.log_name
-
-    @property
     def exec_time(self):
+        """ Time employed for the training process. """
         return self._exec_time
 
     @property
     def log_filename(self):
-        return self._log_file
+        """ Name of the training log report file. """
+        return self._log_filename
 
 
-def debugger():
-    stainings = [Staining.HE, Staining.PAS]
-    rratios = [3, 3, 4]
-    session = Session(stainings, rratios, False)
-
-
-if __name__ == '__main__':
-    debugger()
+# def debugger():
+#     staining_list = [Staining.HE, Staining.PAS]
+#     resize_ratio_list = [3, 3, 4]
+#     Session(staining_list, resize_ratio_list, False)
+#
+#
+# if __name__ == '__main__':
+#     debugger()
