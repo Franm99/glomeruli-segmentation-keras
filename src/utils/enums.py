@@ -5,6 +5,7 @@ from strenum import StrEnum
 
 @unique
 class MetricsEnum(StrEnum):
+    """ String Enum containing metrics from a training process. """
     LOSS = "loss"
     EPOCHS = "epochs"
     ACCURACY = "accuracy"
@@ -21,7 +22,7 @@ class Staining(StrEnum):
 
 
 class MaskType(Enum):
-    """ Type of masks that can be used """
+    """ Type of masks that can be used for the ground-truth. """
     CIRCULAR = auto()
     BBOX = auto()
     HANDCRAFTED = auto()  # These masks are always obtained from disk

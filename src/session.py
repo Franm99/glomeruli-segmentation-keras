@@ -799,26 +799,16 @@ class WorkFlow:
 
     """ PROPERTY """
     @property
-    def results(self):
+    def results(self) -> dict:
         """ Training resulting metrics. """
         return self._results
 
     @property
-    def exec_time(self):
+    def exec_time(self) -> float:
         """ Time employed for the training process. """
         return self._exec_time
 
     @property
-    def log_filename(self):
+    def log_filename(self) -> str:
         """ Name of the training log report file. """
         return self._log_filename
-
-
-# def debugger():
-#     staining_list = [Staining.HE, Staining.PAS]
-#     resize_ratio_list = [3, 3, 4]
-#     Session(staining_list, resize_ratio_list, False)
-#
-#
-# if __name__ == '__main__':
-#     debugger()

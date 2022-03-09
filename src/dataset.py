@@ -81,7 +81,7 @@ class DatasetTest:
         return cv2.imread(im, cv2.IMREAD_GRAYSCALE)
 
 
-class Dataset():
+class Dataset:
     """ Class for data loading and pre-processing before using it as input for the Segmentation keras. """
     def __init__(self, staining: str, mask_type: MaskType, mask_size: Optional[int], mask_simplex: bool):
         """

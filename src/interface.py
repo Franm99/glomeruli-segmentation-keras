@@ -1,63 +1,19 @@
 import cv2.cv2 as cv2
+from dataclasses import dataclass
 import glob
 import numpy as np
 import os
-from PIL import Image as Img
-from PIL.ImageTk import PhotoImage
-from PIL import ImageTk
 import tkinter as tk
+import re
+from PIL import Image as Img, ImageTk
+from PIL.ImageTk import PhotoImage
 from tkinter import ttk
 from typing import List, Optional
-import re
 from tensorflow.keras.utils import normalize
 
+import src.utils.constants as const
 from src.utils.figures import find_blobs_centroids
 from src.keras.utils import load_model_weights, get_model
-import src.utils.constants as const
-
-
-class TrainingData:
-    """
-    Data extracted from a training output data folder.
-    """
-    def __init__(self, dir_path):
-        self._dir_path = dir_path
-        self._model = os.path.join(self._dir_path, "weights", "keras.hdf5")
-        self._foldername = os.path.basename(self._dir_path)
-        self._logFile = LogFile(os.path.join(self._dir_path, self._foldername.replace("-", "") + ".txt"))
-        self._predictions = glob.glob(os.path.join(self._dir_path, "test_pred") + '/*')
-
-    @property
-    def model(self):
-        return self._model
-
-    @property
-    def predictions(self):
-        return self._predictions
-
-    @property
-    def staining(self):
-        return self._logFile.staining
-
-    @property
-    def th(self):
-        return float(self._logFile.prediction_threshold)
-
-    @property
-    def resize_ratio(self):
-        return int(self._logFile.resize_ratio)
-
-
-class LogFile:
-    def __init__(self, filepath):
-        self._filepath = filepath
-        with open(self._filepath, "r") as f:
-            lines = f.readlines()
-
-        for line in lines:
-            if not "--" in line:
-                fields = re.split(" +", line.strip())
-                setattr(self, fields[0].lower(), fields[1])
 
 
 class PredictionViewer(tk.Frame):
@@ -447,4 +403,75 @@ class PredictionViewer(tk.Frame):
     def hex2rgb(hex):
         r, g, b = hex[1:3], hex[3:5], hex[5:7]
         return int(r, 16), int(g, 16), int(b, 16)
+
+
+@dataclass
+class TrainingData:
+    """
+    Training Data
+    =============
+
+    Data class containing extracted data from a training output folder.
+    """
+
+    def __init__(self, dir_path):
+        """ *Class constructor* """
+        self._dir_path = dir_path
+        self._model = os.path.join(self._dir_path, "weights", "*.hdf5")
+        self._folder_name = os.path.basename(self._dir_path)
+        self._logFile = LogFile(os.path.join(self._dir_path, self._folder_name.replace("-", "") + ".txt"))
+        self._predictions = glob.glob(os.path.join(self._dir_path, "test_pred") + '/*')
+
+    @property
+    def model(self):
+        """ Full path to pre-trained weights file. """
+        return self._model
+
+    @property
+    def predictions(self):
+        """ Name of the set of test predictions for a given training output folder. """
+        return self._predictions
+
+    @property
+    def staining(self) -> str:
+        """ Staining used for the given training process. """
+        if hasattr(self._logFile, 'staining'):
+            return self._logFile.staining
+        else:
+            raise AttributeError
+
+    @property
+    def th(self) -> float:
+        """ Binarization threshold used for the given training process. """
+        if hasattr(self._logFile, 'prediction_threshold'):
+            return float(self._logFile.prediction_threshold)
+        else:
+            raise AttributeError
+
+    @property
+    def resize_ratio(self) -> int:
+        """ Resize ratio used for the given training process. """
+        if hasattr(self._logFile, 'resize_ratio'):
+            return int(self._logFile.resize_ratio)
+        else:
+            raise AttributeError
+
+
+class LogFile:
+    """
+    Log File
+    ========
+
+    Log File class that reads the content of a given report file and automatically create class fields for every
+    parameter contained in its lines.
+    """
+    def __init__(self, filepath):
+        """ *Class constructor* """
+        self._filepath = filepath
+        with open(self._filepath, "r") as f:
+            lines = f.readlines()
+        for line in lines:
+            if "--" not in line:
+                fields = re.split(" +", line.strip())
+                setattr(self, fields[0].lower(), fields[1])
 

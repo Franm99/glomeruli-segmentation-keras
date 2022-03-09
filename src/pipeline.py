@@ -331,12 +331,12 @@ class WSI(openslide.OpenSlide):
         return self.level_dimensions[level], ss_factor
 
     @property
-    def window_reduced_dim(self):
+    def window_reduced_dim(self) -> int:
         """ Window reduced dimension. """
         return self._window_reduced_dim
 
     @property
-    def ss_factor(self):
+    def ss_factor(self) -> int:
         """ Sub-sampling factor. """
         return self._ss_factor
 
@@ -359,26 +359,26 @@ class ModelData:
         self._weights = model_weights
 
     @property
-    def weights(self):
+    def weights(self) -> str:
         """ Full path to the weights file. """
         return self._weights
 
     @property
-    def name(self):
+    def name(self) -> str:
         """ Model used (e.g., ``simple_unet``)."""
         return self._fields[0]
 
     @property
-    def staining(self):
+    def staining(self) -> str:
         """ Staining (e.g., ``HE``, ``PAS``, ``PM``)."""
         return self._fields[1]
 
     @property
-    def resize_ratio(self):
+    def resize_ratio(self) -> int:
         """ Resize ratio that have to be applied at the model input. """
         return int(self._fields[2])
 
     @property
-    def date(self):
+    def date(self) -> str:
         """ Date when the model weights were obtained. """
         return self._fields[3].split('.')[0]
