@@ -27,7 +27,7 @@ def main():
 
     segmentationPipeline = SegmentationPipeline()
     segmentationPipeline.run(slide_file, th=args.threshold)
-    prediction = segmentationPipeline.get_scaled_prediction(reduction_factor=args.scale)
+    prediction = segmentationPipeline.get_scaled_prediction(scale=args.scale)
     prediction_name = os.path.basename(slide_file).split('.')[0] + f"_mask_s{args.scale}.png"
     output_path = Path(slide_file).parent.joinpath(prediction_name)
     prediction.save(output_path)

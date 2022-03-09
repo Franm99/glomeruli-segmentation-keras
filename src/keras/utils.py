@@ -1,6 +1,5 @@
 """ Utility functions to trait keras models. """
 import keras
-from src.keras.keras_models import simple_unet
 
 
 def get_model(model: str, **kwargs) -> keras.Model:
@@ -10,7 +9,6 @@ def get_model(model: str, **kwargs) -> keras.Model:
     return eval(model)(**kwargs)
 
 
-# TODO use weigths file name to determine the keras keras to use. Naming example: simple_unet-HE-3-<date>.hdf5
 def load_model_weights(model: keras.Model, weights_filename: str) -> keras.Model:
     """ Load pre-trained weights to the specified keras. It will be assumed that pre-trained weights were obtained with
     the specified keras.

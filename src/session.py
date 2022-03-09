@@ -2,17 +2,16 @@ import csv
 import cv2.cv2 as cv2
 import glob
 import logging
-
 import keras.callbacks
 import matplotlib
 import numpy as np
 import os
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import statistics as stats
 import time
-from tensorflow.keras.utils import normalize
 import tensorflow.keras.callbacks as cb
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import normalize
 from tqdm import tqdm
 from typing import List, Any, Tuple
 
