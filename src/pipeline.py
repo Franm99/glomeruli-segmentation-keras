@@ -189,7 +189,7 @@ class SegmentationPipeline:
         :return: None
         """
         x, y = self.__get_coords(name)
-        s = params.PATCH_SIZE[0]
+        s = const.IMG_SIZE[0]
         self.prediction[y:y+s, x:x+s] = np.logical_or(self.prediction[y:y+s, x:x+s], pred)
 
     def __get_patches_from_thumbnail(self, im_pil: Image) -> Tuple[List[int], List[int]]:
@@ -296,7 +296,7 @@ class WSI(openslide.OpenSlide):
         """ *Class constructor* """
         super().__init__(filename)
         self._best_dims, self._ss_factor = self._find_lower_thumbnail_dimensions()
-        self._window_reduced_dim = int(params.PATCH_SIZE[0] / self.ss_factor)
+        self._window_reduced_dim = int(const.IMG_SIZE[0] / self.ss_factor)
 
     def get_thumbnail(self, size: Optional[Tuple[int, int]] = None) -> Image:
         """
@@ -323,7 +323,7 @@ class WSI(openslide.OpenSlide):
         ss_factor = -1
         for level in range(max_level, 1, -1):
             ss_factor = 2 ** level
-            reduced_dim = params.PATCH_SIZE[0] / ss_factor
+            reduced_dim = const.IMG_SIZE[0] / ss_factor
             stride = reduced_dim * const.STRIDE_PTG
             if math.floor(stride) == stride:
                 break

@@ -24,6 +24,7 @@ import re
 from tqdm import tqdm
 from PIL import Image
 
+import src.utils.constants as const
 from src.keras.keras_models import simple_unet
 
 output_folder = "2022-02-10_20-32-18"
@@ -32,7 +33,7 @@ output_dir = os.path.join('output', output_folder)
 
 def get_model() -> keras.Model:
     """ return: U-Net Keras keras (TF2 version)"""
-    return simple_unet(params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE, 1)
+    return simple_unet(const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE, 1)
 
 
 def load_model() -> keras.Model:
@@ -99,7 +100,7 @@ def _get_pred_mask(im, dim, model, th: float):
                 # prediction = np.zeros((dim, dim), dtype=np.uint8)
             else:
                 # Tissue sub-patches are fed to the U-net keras for mask prediction
-                patch = cv2.resize(patch, (params.UNET_INPUT_SIZE, params.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
+                patch = cv2.resize(patch, (const.UNET_INPUT_SIZE, const.UNET_INPUT_SIZE), interpolation=cv2.INTER_AREA)
                 patch_input = np.expand_dims(normalize(np.array([patch]), axis=1), 3)
                 prediction = model._predict(patch_input)[:, :, :, 0]
                 # prediction = prediction[0, :, :]
@@ -135,7 +136,7 @@ def get_predictions(staining: str):
     test_files = load_my_test(staining, 100)
     gt_files = load_my_gt(test_files)
     th = 0.7
-    org_size = params.UNET_INPUT_SIZE * 3
+    org_size = const.UNET_INPUT_SIZE * 3
     for im_file, gt_file in zip(test_files, gt_files):
         im = cv2.imread(im_file, cv2.IMREAD_GRAYSCALE)
         im_file_dest = os.path.join(ims_dir, os.path.basename(im_file))
@@ -155,7 +156,7 @@ def validate_model():
     # plt.imshow(test_ims[0])
     th = 0.7
     predictions = []
-    org_size = int(params.UNET_INPUT_SIZE * params.RESIZE_RATIOS[0])
+    org_size = int(const.UNET_INPUT_SIZE * params.RESIZE_RATIOS[0])
     for im, name, gt, pred in zip(test_ims, test_names, gt_ims, preds):
         new_pred = _get_pred_mask(im, org_size, model, th)
         # show_ims(preds, title=name)
@@ -193,7 +194,7 @@ def mask_assembly():
 
     ims, ims_names = load_wsi_patches(wsi_name)
 
-    org_size = int(params.UNET_INPUT_SIZE * 3)
+    org_size = int(const.UNET_INPUT_SIZE * 3)
     th = 0.7
     predictions = predict(model, ims, org_size, th)
 

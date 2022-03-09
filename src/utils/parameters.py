@@ -48,16 +48,6 @@ REDUCELR_PATIENCE = 2
 ACTIVATE_REDUCELR = False
 
 # deprecated
-DEBUG_LIMIT = None
 MASK_SIZE = 100
 APPLY_SIMPLEX = False
 MASK_TYPE = MaskType.HANDCRAFTED
-# MASK_TYPE = MaskType.CIRCULAR
-
-# constants
-OUTPUT_BASENAME = '../output'
-PATCH_SIZE = (3200, 3200)
-STRIDE_PTG = 1/4
-UNET_INPUT_SIZE = 256
-OPENSLIDE_DIR = "C:\\Users\\Usuario\\Documents\\OpenSlide\\openslide-win64-20171122\\bin"
-BIOPSY_DIR = "biopsy"

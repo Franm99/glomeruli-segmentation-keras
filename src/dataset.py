@@ -17,9 +17,9 @@ from itertools import combinations
 from scipy.spatial import distance
 from bs4 import BeautifulSoup
 
-from src.utils.misc import print_info, print_error, timer
 import src.utils.parameters as params
 import src.utils.constants as const
+from src.utils.misc import print_info, print_error, timer
 from src.utils.enums import MaskType, Size, GlomeruliClass
 
 
@@ -572,7 +572,6 @@ class PatchGenerator:
         return 255 * (im > th)
 
 
-
 class MaskGenerator:
     """ Class to load or create masks for the groundtruth """
     def __init__(self, ims_names: List[str], mask_type: MaskType = MaskType.CIRCULAR,
@@ -636,7 +635,7 @@ class MaskGenerator:
         :param data: dictionary with information about each glomeruli class.
         :return: synthetic circular masks.
         """
-        h, w = params.PATCH_SIZE[1], params.PATCH_SIZE[0]
+        h, w = const.IMG_SIZE[1], const.IMG_SIZE[0]
         im_mask = np.zeros((h, w), dtype=np.uint8)
         if self._mask_type == MaskType.CIRCULAR:
             for r in data.keys():
