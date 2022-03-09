@@ -10,8 +10,8 @@ def find_blobs_centroids(img: np.ndarray) -> List[Tuple[float, float]]:
     """
     This function implements region labelling and region properties extraction to find, label and compute centroids of
     each blob in binary images.
-    SOURCE:
-    NOTE: In this context, blob = glomerulus.
+
+    **NOTE:** In this context, blob = glomerulus.
     """
     img_th = img.astype(bool)
     img_labels = label(img_th)
@@ -23,13 +23,19 @@ def find_blobs_centroids(img: np.ndarray) -> List[Tuple[float, float]]:
 
 
 def t_find_blob_centroids():
+    """
+    *Test function*
+
+    Testing unit for find_blob_centroids() function.
+    """
+    import cv2.cv2 as cv2
+
     data_dir = "../../data"
     mask_sample = os.path.join(data_dir, "segmenter", "HE", "gt", "masks", "20B0004711 HE_x4800y14400s3200.png")
-    import cv2.cv2 as cv2
+
     im = cv2.imread(mask_sample, cv2.IMREAD_GRAYSCALE)
     centroids = find_blobs_centroids(im)
     print(centroids)
-    import matplotlib.pyplot as plt
     plt.imshow(im, cmap="gray")
     for (cy, cx) in centroids:
         plt.plot(cx, cy, ".r")
@@ -38,7 +44,8 @@ def t_find_blob_centroids():
 
 def compute_rows_cols(num: int, m: int, n: int) -> Tuple[int, int]:
     """
-    Compute number of rows and columns for subplot
+    Compute number of rows and columns for subplot.
+
     :param num: number of subfigures
     :param m: rows preference
     :param n: columns preference
@@ -63,7 +70,8 @@ def compute_rows_cols(num: int, m: int, n: int) -> Tuple[int, int]:
 def show_ims(imgs: List[np.ndarray], m: Optional[int] = None, n: Optional[int] = None,
              title: str = "", subtitles: Optional[List[str]] = None):
     """
-    Show a group of images in subplots of the same figure
+    Show a group of images in subplots of the same figure.
+
     :param imgs: images to show
     :param m: number of rows preference
     :param n: number of columns preference
@@ -93,7 +101,8 @@ def show_masked_ims(imgs: List[np.ndarray], masks: List[np.ndarray],
                     m: Optional[int] = None, n: Optional[int] = None,
                     title: str = "", subtitles: Optional[List[str]] = None):
     """
-    Show a group of images in subplots of the same figure
+    Show a group of images in subplots of the same figure.
+
     :param imgs: images to show
     :param m: number of rows preference
     :param n: number of columns preference
