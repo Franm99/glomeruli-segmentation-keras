@@ -39,9 +39,7 @@ username:~$ conda activate your_env_name
 (your_env_name) username:~$ pip install -r /path/to/repo/requirements.txt
 ```
 
-### [OpenSlide for Python](https://openslide.org/api/python/) {#openslide}
-
-
+<h3 id="openslide"><a href=https://openslide.org/api/python/>OpenSlide for Python</a></h3>
 
 #### Installation Steps
 
