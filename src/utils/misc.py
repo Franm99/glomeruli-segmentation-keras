@@ -1,5 +1,5 @@
 import time
-from typing import Optional, List
+from typing import Optional, List, Callable
 from tkinter import filedialog
 import os
 from getpass import getpass
@@ -12,17 +12,51 @@ from email import encoders
 
 
 class EmailHandler:
+    """
+    Email Handler
+    =============
+
+    This class creates a email contextualized handler to send report emails generated during the training process.
+
+    **NOTE:** I have created a gmail account with the unique purpose of sending training report emails. Its password is
+    private knowledge, so if you want to use this functionality, you should specify your own gmail account and password.
+
+    Functionalities
+    ---------------
+
+    Send sample Info
+    ~~~~~~~~~~~~~~~~
+
+    Generates a new message to notice the user that a sample training has finished. The message will contain relevant
+    information about the training results.
+
+    Send session info
+    ~~~~~~~~~~~~~~~~~
+
+    Generates a new message to notice the user that the whole current training session has finished. The message will
+    contain relevant information about the best results during the session.
+
+    """
     def __init__(self):
+        """ *Class constructor* """
         def_sender_email = "pythonAdvisor22@gmail.com"
         req = input("Use default sender ({}) [Y/n]: ".format(def_sender_email))
         if req.lower() == "y":
             self._sender = def_sender_email
         else:
             self._sender = input("Specify sender email: ")
-        self._pass = getpass()  # Just for terminal executions, not IDLE!
+        self._pass = getpass()  # Just when running in terminal, not IDE!
         self._recv = input("Specify receiver email: ")
 
     def send_sample_info(self, t: float, fname: str) -> None:
+        """
+        Generates a new message to notice the user that a sample training has finished. The message will contain
+        relevant information about the training results.
+
+        :param t: sample timestamp (duration of the training process)
+        :param fname: filename of the file to be sent within the email.
+        :return: None
+        """
         time_mark = time.strftime("%H:%M:%S", time.gmtime(t))
         html = """\
                 <html>
@@ -35,9 +69,28 @@ class EmailHandler:
         self._send_message(subject="Sample training finished", html=html, log_file=fname)
 
     def send_session_info(self, fname: str) -> None:
+        """
+        Generates a new message to notice the user that the whole current training session has finished. The message
+        will contain relevant information about the best results during the session.
+
+        :param fname: filename of the file to be sent within the message.
+        :return: None
+        """
         self._send_message(subject="Session ended", log_file=fname)
 
     def _send_message(self, subject: str, html: Optional[str] = None, log_file: Optional[str] = None) -> None:
+        """ *Private*
+
+        Generic method to send a message.
+
+        Source: `How to send messages using Python
+        <https://stackabuse.com/how-to-send-emails-with-gmail-using-python/>`_
+
+        :param subject: Subject of the message. It will first show to the user the topic of the message.
+        :param html: message content. It is a string containing raw html code.
+        :param log_file: If needed, a file can be added to be sent within the email.
+        :return: None
+        """
         port = 465
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
@@ -63,23 +116,31 @@ class EmailHandler:
             server.sendmail(self._sender, self._recv, message.as_string())
 
 
-def browse_path():
+def browse_path() -> str:
     """
-    Opens a file browser to select the path from where test prediction images are taken.
-    Default initial directory: output/ folder.
+    Opens a file browser to select the path to a specific folder.
 
-    **NOTE**: To select a certain output folder, you may first enter to that folder!
+    **NOTE**: To select a certain output folder, you may first enter to that folder.
+
+    :return: string with the full path to the selected folder.
     """
     full_path = filedialog.askdirectory(initialdir='../output')
     return full_path
 
 
 def browse_file():
+    """
+    Open a file browser to select the path to a specific file.
+
+    :return: string with the full path to the selected file.
+    """
     return filedialog.askopenfilename(initialdir='data/raw')
 
 
-def timer(f):
+def timer(f) -> Callable:
     """
+    *Decorator*
+
     Timer decorator to wrap and measure a function time performance.
 
     :param f: Function to wrap.
@@ -100,7 +161,7 @@ def list2txt(filename: str, data: List[str]) -> None:
     """
     Function to save a list of string values into a txt file.
 
-    :param filename: txt file full path and name
+    :param filename: txt file full path and name.
     :param data: list containing the data to be saved.
     :return: None
     """
