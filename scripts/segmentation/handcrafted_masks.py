@@ -2,13 +2,9 @@ import cv2.cv2 as cv2
 import glob
 import numpy as np
 import os
-import sys
 from bs4 import BeautifulSoup
-from os.path import dirname, abspath
 from tqdm import tqdm
 from typing import Tuple, List
-
-sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 
 def contours2mask(im: np.ndarray, color: Tuple[int, int, int]) -> np.ndarray:
@@ -22,10 +18,10 @@ def contours2mask(im: np.ndarray, color: Tuple[int, int, int]) -> np.ndarray:
     :param color: color used for contours (RGB).
     :return: resulting binary mask (2D array)
     """
-    chR = im[..., 0] == color[0]
-    chG = im[..., 1] == color[1]
-    chB = im[..., 2] == color[2]
-    im_th = np.logical_and(chR, chG, chB).astype(np.uint8)
+    ch_r = im[..., 0] == color[0]
+    ch_g = im[..., 1] == color[1]
+    ch_b = im[..., 2] == color[2]
+    im_th = np.logical_and(ch_r, ch_g, ch_b).astype(np.uint8)
 
     # Flood-filled image
     im_floodfill = im_th.copy()
@@ -57,7 +53,7 @@ def get_masks(target_path: str) -> None:
     for im_name in tqdm(ims_names):
         im = cv2.cvtColor(cv2.imread(im_name, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
         mask = contours2mask(im, color=contour_color)
-        output_name =  os.path.join(output_path, os.path.basename(im_name))
+        output_name = os.path.join(output_path, os.path.basename(im_name))
         cv2.imwrite(output_name, mask)
 
 

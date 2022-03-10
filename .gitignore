@@ -1,3 +1,14 @@
+# IDE
 .idea
 .pytest_cache
-__pycache__
+__pycache__/
+
+# Output
+scripts/segmentation/*
+!scripts/segmentation/*.py
+scripts/classification/*
+!scripts/classification/*.py
+
+# Data
+data/raw/*
+data/segmenter/*

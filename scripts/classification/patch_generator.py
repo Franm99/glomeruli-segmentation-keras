@@ -1,27 +1,31 @@
+import cv2.cv2 as cv2
 import glob
 import os
-import tkinter as tk
-from PIL import Image as Img
-from PIL.ImageTk import PhotoImage
-from PIL import ImageTk
-import cv2.cv2 as cv2
 import numpy as np
 import random
-from typing import Tuple, Optional
 import re
+import sys
+import tkinter as tk
+from os.path import dirname, abspath
+from PIL import Image as Img, ImageTk
+from PIL.ImageTk import PhotoImage
+from typing import Tuple, Optional
+
+sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
+import src.utils.constants as const
 
 # PARAMETERS #
-staining = "HE" # Select desired staining: HE, PAS, PM, None to select all of them
-DATASET_PATH = 'data_debug'
+staining = "HE" # Select desired staining: HE, PAS, PM
 RANDOM_ORDER = False
 
 # CONSTANTS #
+DATASET_PATH = const.SEGMENTER_DATA_PATH
 IM_SIZE = 3200
 PATCH_SIZE = 600
 
-ims_directory = os.path.join(DATASET_PATH, 'ims')
-masks_directory = os.path.join(DATASET_PATH, 'gt/masks')
-out_folder = 'patches'
+ims_directory = os.path.join(DATASET_PATH, staining, 'ims')
+masks_directory = os.path.join(DATASET_PATH, staining, 'gt', 'masks')
+out_folder = os.path.join(dirname(abspath(__file__)), 'patches')
 if not os.path.isdir(out_folder):
     os.mkdir(out_folder)
 
@@ -59,6 +63,8 @@ class PatchGenerator(tk.Frame):
         # Interface variables
         self.viewed_ims = 0
         self.patches_count = self.current_num_patches()
+        self.canvas = None
+        self.im_canvas = None
         self.rectangle = None
         self.im = None
         self.name = None
@@ -73,8 +79,8 @@ class PatchGenerator(tk.Frame):
     def create_widgets(self):
         """ Create, initialize and place widgets on frame. """
         # Staining note
-        stainingNote = "Staining: {}".format(self.staining if (self.staining != '') else 'ALL')
-        tk.Label(self, text=stainingNote, font="Arial 10", anchor=tk.S).grid(column=1, row=0, pady=10)
+        staining_note = "Staining: {}".format(self.staining if (self.staining != '') else 'ALL')
+        tk.Label(self, text=staining_note, font="Arial 10", anchor=tk.S).grid(column=1, row=0, pady=10)
         # Canvas
         self.canvas = tk.Canvas(self, width=self.canvas_w, height=self.canvas_h)
         self.canvas.grid(row=1, column=0, columnspan=3, padx=20, pady=10)
@@ -82,17 +88,15 @@ class PatchGenerator(tk.Frame):
         self.canvas.bind("<Button-1>", self.click)
 
         # Buttons
-        self.buttonNext = tk.Button(self, text=u"\u2192", command=self.cb_nextImage, font="Arial 12",
-                                    height=3, width=10, background="#595959", foreground="#F2F2F2")
-        self.buttonNext.grid(row=2, column=1, rowspan=2, padx=10, pady=10)
+        tk.Button(self, text=u"\u2192", command=self.cb_next_image, font="Arial 12", height=3, width=10,
+                  background="#595959", foreground="#F2F2F2").grid(row=2, column=1, rowspan=2, padx=10, pady=10)
 
         guide_text = "Progress (Random)" if self.rand_order else "Progress (Ordered)"
         tk.Label(self, text=guide_text, font="Arial 10", anchor="center").grid(column=0, row=2, pady=10, padx=10)
-        self.lblProgress = tk.Label(self, textvariable=self.progress, font="Arial 10")
-        self.lblProgress.grid(row=3, column=0, padx=10, pady=10, sticky=tk.N)
+        tk.Label(self, textvariable=self.progress, font="Arial 10").grid(row=3, column=0, padx=10, pady=10, sticky=tk.N)
         tk.Label(self, text="Num of images", font="Arial 10", anchor="center").grid(column=2, row=2, pady=10, padx=10)
-        self.lblNumber = tk.Label(self, textvariable=self.total_num_patches, font="Arial 10")
-        self.lblNumber.grid(row=3, column=2, padx=10, pady=10, sticky=tk.N)
+        tk.Label(self, textvariable=self.total_num_patches, font="Arial 10").grid(row=3, column=2, padx=10, pady=10,
+                                                                                  sticky=tk.N)
 
     def load_im(self) -> Tuple[np.ndarray, str, PhotoImage]:
         """ Load image and mask from iterators and send to canvas in an overlayed format. """
@@ -106,8 +110,8 @@ class PatchGenerator(tk.Frame):
         mask_gray = mask_path
         mask[:, :, 1] = cv2.imread(mask_gray, cv2.IMREAD_GRAYSCALE)
         mask[:, :, 2] = cv2.imread(mask_gray, cv2.IMREAD_GRAYSCALE)
-        im_overlayed = cv2.addWeighted(im, 1.0, mask, 0.3, 0.5)
-        im_canvas = self.toImageTk(im_overlayed)
+        im_overlaid = cv2.addWeighted(im, 1.0, mask, 0.3, 0.5)
+        im_canvas = self.to_image_tk(im_overlaid)
         return im, name, im_canvas
 
     def update_interface(self):
@@ -115,7 +119,7 @@ class PatchGenerator(tk.Frame):
         self.canvas.create_image(0, 0, image=self.im_canvas, anchor=tk.NW)
         self.progress.set("{}/{}".format(self.viewed_ims, self.num_ims))
 
-    def toImageTk(self, im: np.ndarray) -> PhotoImage:
+    def to_image_tk(self, im: np.ndarray) -> PhotoImage:
         """
         :param im: image in numpy array format
         :return: image in PhotoImage format (for tkinter canvas)
@@ -132,15 +136,11 @@ class PatchGenerator(tk.Frame):
 
     def click(self, event):
         self.mark_patch(event)
-        X, Y = event.x * self.reduction_ratio, event.y * self.reduction_ratio
-        bb = self.get_bbox(X, Y, self.patch_size)
+        gx, gy = event.x * self.reduction_ratio, event.y * self.reduction_ratio
+        bb = self.get_bbox(gx, gy, self.patch_size)
         self.get_patch(bb)
         self.patches_count += 1
         self.total_num_patches.set(str(self.patches_count))
-
-    # Callback methods
-    def cb_nextImage(self):
-        self.update_interface()
 
     def get_patch(self, bb):
         patch = self.im[bb[3]:bb[1], bb[2]:bb[0]]
@@ -165,17 +165,24 @@ class PatchGenerator(tk.Frame):
             if ((IM_SIZE % i) == 0) and ((IM_SIZE // i) < (self.winfo_screenheight() * 3/4)):
                 return i
 
-    def save_checkpoint(self, name):
-        with open(checkpoint_file, 'a') as file:
-            file.write(f'{name}\n')
-
     def pop_seen_images(self):
         with open(checkpoint_file, 'r') as file:
             seen_files = [i.strip('\n') for i in file.readlines()]
         self.ims_list = [i for i in self.ims_list if not os.path.basename(i) in seen_files]
         self.masks_list = [i for i in self.masks_list if not os.path.basename(i) in seen_files]
 
-    def current_num_patches(self):
+    """ CALLBACKS """
+    def cb_next_image(self):
+        self.update_interface()
+
+    """ STATIC """
+    @staticmethod
+    def save_checkpoint(name):
+        with open(checkpoint_file, 'a') as file:
+            file.write(f'{name}\n')
+
+    @staticmethod
+    def current_num_patches():
         return len(os.listdir(out_folder))
 
     @staticmethod
