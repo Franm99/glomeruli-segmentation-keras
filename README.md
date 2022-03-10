@@ -2,17 +2,127 @@
 
 ## Introduction
 
+SUMMARY
+
+RESULTS IMAGES
+
 ## Environment Set-up
 
-Reference to [intro](#introduction)
+### Creating a Conda Environment
+
+1. Install conda on your device: installation guide for
+   [Windows](https://docs.conda.io/projects/conda/en/latest/user-guide/install/windows.html) |
+   [Linux](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html)
+   By default, conda creates the _base_ environment. You can deactivate it with `conda deactivate base`
+2. Create a new environment specifying Python version.
+
+```bash
+username:~$ conda create --name your_env_name python=3.8
+```
+
+**NOTE:** Any Python3 version is valid. Nonetheless, 3.8 or higher is recommended.
+
+3. Activate the new environment. When an environment is active, the name within brackets will appear before your
+   username.
+
+```bash
+username:~$ conda activate your_env_name 
+(your_env_name) username:~$ 
+```
+
+### Project requirements
+
+4. Use `pip` to install the list of required modules. They are listed in the `requirements.txt` file included in the
+   parent directory.
+
+```bash
+(your_env_name) username:~$ pip install -r /path/to/repo/requirements.txt
+```
+
+### [OpenSlide for Python](https://openslide.org/api/python/) {#openslide}
+
+
+
+#### Installation Steps
+
+- **Windows**
+
+1. Install OpenSlide API for Python:
+
+```bash
+username:~$ pip install openslide-python
+```
+
+2. Install [OpenSlide Source Binaries](https://openslide.org/download/), downloading the last version
+   (**Windows Binaries** section). Unzip it in your desired directory. The folder structure can be seen below.
+
+```bash
+username:path-to-openslide-folder~$ tree 
+├───bin/
+│   ├───libopenslide-0.dll
+│   └───...
+├───include/
+│   └───openslide/
+├───lib/
+└───licenses/
+```
+
+3. Create a new environment variable named `OPENSLIDE_PATH` that contains the path to the `bin/` directory. **This step
+   is crucial**. You can follow this
+   [guide](https://docs.oracle.com/en/database/oracle/machine-learning/oml4r/1.5.1/oread/creating-and-modifying-environment-variables-on-windows.html),
+   or open a command prompt and type the following command (the `echo` command is just used to ensure that the variable has
+   been succesfully saved):
+
+```bash
+C:/Users/user> setx OPENSLIDE_PATH "path/to/openslide/bin"
+C:/Users/user> echo %OPENSLIDE_PATH%
+```
+
+4. Finally, you have to include the following code snippet in those files where you want to use OpenSlide:
+
+```python
+from sys import platform
+
+_dll_path = os.getenv('OPENSLIDE_PATH')  
+if _dll_path is not None:
+    # Python >= 3.8
+    with os.add_dll_directory(_dll_path):
+        import openslide
+```
+
+- **Linux (Ubuntu)**
+
+Install OpenSlide API for Python:
+
+```bash
+username:~$ pip install openslide-python
+```
+
+Install OpenSlide source:
+
+```bash
+username:~$ sudo apt-get install openslide-tools
+```
+
+Import OpenSlide to your Python script:
+
+```python
+import openslide
+```
+
+#### OpenSlide Guide
+
+Check the [OpenSlide API documentation](https://openslide.org/api/python/) for Python.
+
+[hello](#openslide)
 
 ## Project Structure
 
 ## Results
 
-## 
+## Future work
 
-## 
+## References
 
 ## Goals
 
@@ -26,35 +136,6 @@ Reference to [intro](#introduction)
   our case study: Classic U-Net [[1]](#1), [DoubleU-Net](https://arxiv.org/pdf/2006.04868.pdf), [U-Net++,](https://arxiv.org/pdf/1807.10165.pdf) belong others.
 
 ## Environment Setup
-
-Reference to [intro](#introduction)
-
-### Creating Conda Environment
-
-1. Install conda on your device: installation guide for
-   [Windows](https://docs.conda.io/projects/conda/en/latest/user-guide/install/windows.html) |
-   [Linux](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html)
-   By default, conda creates the _base_ environment. You can deactivate it with `conda deactivate base`
-2. Create a new environment specifying Python version (any Python3 version is valid).
-
-```bash
-username:~$ conda create --name your_env_name python=3.8
-```
-
-3. Activate the new environment. When an environment is active, it's indicated between brackets.
-
-```bash
-username:~$ conda activate your_env_name 
-(your_env_name) username:~$ 
-```
-
-### Install requirements
-
-4. Use pip to install the list of required modules (`requirements.txt` file).
-
-```bash
-(your_env_name) username:~$ pip install -r /path/to/requirements.txt
-```
 
 ## Application stages
 
@@ -75,7 +156,7 @@ Figure 2: Application stages
 
 **NOTE:**  Stages 1 and 3 work with [OpenSlide](https://openslide.org/) to work with Whole-Slide Images. This library
 is C-native, but there exists APIs for MATLAB and Python, for instance. See the section
-[OpenSlide for Python](#openslide).
+[OpenSlide for Python](#openslide-for-python).
 
 ## Project structure
 
@@ -164,67 +245,6 @@ contain information about the exact position and class of most glomeruli._
 _train_val/ - The segmentation model just works for an specific input size.
 Images and masks will be partitioned into sub-patches, and this sub-patches
 will be saved into this directory._
-
-<h2 id="openslide">
-OpenSlide for Python
-</h2>
-
-### Installation Steps
-
-#### Windows
-
-Install OpenSlide API for Python:
-
-```bash
-username:~$ pip install openslide-python
-```
-
-Install [OpenSlide Source Binaries](https://openslide.org/download/), downloading the last version
-(**Windows Binaries** section). Unzip it in your desired directory. The folder structure is showed below.
-
-```bash
-username:path-to-openslide-folder~$ tree 
-├───bin/
-│   ├───libopenslide-0.dll
-│   └───...
-├───include/
-│   └───openslide/
-├───lib/
-└───licenses/
-```
-
-Python needs to know the location of `libopenslide-0.dll` binary. It can be solved with a simple line in your Python
-script, as mentioned in this [GitHub issue](https://github.com/openslide/openslide-python/issues/98#issuecomment-817942086).
-
-```python
-import os
-os.add_dll_directory('/path/to/openslide/bin')
-import openslide
-```
-
-#### Linux (Ubuntu)
-
-Install OpenSlide API for Python:
-
-```bash
-username:~$ pip install openslide-python
-```
-
-Install OpenSlide source:
-
-```bash
-username:~$ sudo apt-get install openslide-tools
-```
-
-Import OpenSlide to your Python script:
-
-```python
-import openslide
-```
-
-### OpenSlide Guide
-
-Check the [OpenSlide API documentation](https://openslide.org/api/python/) for Python.
 
 ## References
 

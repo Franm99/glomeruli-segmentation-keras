@@ -1,7 +1,6 @@
 import cv2.cv2 as cv2
 import glob
 import math
-
 import keras
 import numpy as np
 import os
@@ -19,7 +18,7 @@ from src.keras.utils import get_model, load_model_weights
 from src.utils.enums import Staining
 
 if platform == "win32":
-    _dll_path = os.getenv('OPENSLIDE_PATH')  # TODO add README.md guide for Openslide import when using Windows
+    _dll_path = os.getenv('OPENSLIDE_PATH')
     if _dll_path is not None:
         # Python >= 3.8
         with os.add_dll_directory(_dll_path):
