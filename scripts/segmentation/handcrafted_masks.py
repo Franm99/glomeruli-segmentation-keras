@@ -1,20 +1,23 @@
-""" Script to get filled masks from manually segmented glomeruli using contours."""
-import glob
-import os
-import numpy as np
 import cv2.cv2 as cv2
-import matplotlib.pyplot as plt
-from typing import Tuple
-from tqdm import tqdm
+import glob
+import numpy as np
+import os
+import sys
 from bs4 import BeautifulSoup
+from os.path import dirname, abspath
+from tqdm import tqdm
+from typing import Tuple, List
 
-import src.utils.parameters as params
+sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
 
 
 def contours2mask(im: np.ndarray, color: Tuple[int, int, int]) -> np.ndarray:
     """
     Get contour-labelled image and generate binary mask filling holes.
-    Source: https://learnopencv.com/filling-holes-in-an-image-using-opencv-python-c/
+
+    **Source:** `Filling holes in an image using opencv-python
+    <https://learnopencv.com/filling-holes-in-an-image-using-opencv-python-c/>`_
+
     :param im: 3-channel (RGB) image with easy-to-find contours.
     :param color: color used for contours (RGB).
     :return: resulting binary mask (2D array)
@@ -37,10 +40,17 @@ def contours2mask(im: np.ndarray, color: Tuple[int, int, int]) -> np.ndarray:
     return im_th | im_floodfill_inv
 
 
-def get_masks():
+def get_masks(target_path: str) -> None:
+    """
+    Read images with remarked contours and generate binary masks with filled holes.
+
+    Images are saved to the output path.
+
+    :return: None
+    """
     contour_color = (0, 255, 0)
-    ims_path = params.DATASET_PATH + '/marked_ims'
-    output_path = params.DATASET_PATH + '/gt/masks'
+    ims_path = target_path
+    output_path = os.path.join(target_path, 'masks')
     if not os.path.isdir(output_path):
         os.mkdir(output_path)
     ims_names = glob.glob(ims_path + '/*')
@@ -51,23 +61,28 @@ def get_masks():
         cv2.imwrite(output_name, mask)
 
 
-def coordinates_over_images():
-    ims_path = params.DATASET_PATH + '/ims'
-    xml_path = params.DATASET_PATH + '/xml'
-    output_path = params.DATASET_PATH + '/marked_ims'
+def coordinates_over_images(target: str) -> None:
+    """
+    Draw centroids of know blobs over the masks to ease finding them.
+
+    :return: None
+    """
+    ims_path = os.path.join(target, 'ims')
+    xml_path = os.path.join(target, 'xml')
+    output_path = os.path.join(target, 'marked_ims')
     if not os.path.isdir(output_path):
         os.mkdir(output_path)
     ims_names = glob.glob(ims_path + '/*')
     xml_names = [os.path.join(xml_path, os.path.basename(i)[:-4] + '.xml') for i in ims_names]
     for im_name, xml_name in tqdm(zip(ims_names, xml_names), total=len(ims_names)):
         im = cv2.imread(im_name, cv2.IMREAD_COLOR)
-        points = get_coords(im_name, xml_name)
+        points = get_coords(xml_name)
         for point in points:
             im = cv2.circle(im, point, radius=10, color=(0, 0, 255), thickness=20)
         cv2.imwrite(os.path.join(output_path, os.path.basename(im_name)), im)
 
 
-def get_coords(im_name, xml_name):
+def get_coords(xml_name: str) -> List[Tuple[int, int]]:
     with open(xml_name, 'r') as f:
         data = f.read()
     bs_data = BeautifulSoup(data, "xml")
@@ -80,6 +95,6 @@ def get_coords(im_name, xml_name):
     return p
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
     # get_masks()
-    coordinates_over_images()
+    # coordinates_over_images()

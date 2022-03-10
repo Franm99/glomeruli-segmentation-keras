@@ -1,9 +1,9 @@
-from os.path import dirname, abspath
 import sys
+from os.path import dirname, abspath
 
 sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
-from src.session import Session
 import src.utils.parameters as params
+from src.session import Session
 
 
 def main():

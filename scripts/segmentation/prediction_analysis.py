@@ -1,4 +1,3 @@
-""" File to analyze the test set prediction results"""
 from src.interface import PredictionViewer
 from src.utils.misc import browse_path
 

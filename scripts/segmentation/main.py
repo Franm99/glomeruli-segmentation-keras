@@ -1,7 +1,7 @@
 import argparse
 import os
-from os.path import dirname, abspath
 import sys
+from os.path import dirname, abspath
 from pathlib import Path
 
 sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
