@@ -417,7 +417,7 @@ class TrainingData:
     def __init__(self, dir_path):
         """ *Class constructor* """
         self._dir_path = dir_path
-        self._model = os.path.join(self._dir_path, "weights", "*.hdf5")
+        self._model = glob.glob(os.path.join(self._dir_path, "weights") + '/*.hdf5')[0]
         self._folder_name = os.path.basename(self._dir_path)
         self._logFile = LogFile(os.path.join(self._dir_path, self._folder_name.replace("-", "") + ".txt"))
         self._predictions = glob.glob(os.path.join(self._dir_path, "test_pred") + '/*')

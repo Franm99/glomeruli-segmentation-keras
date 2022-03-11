@@ -1,5 +1,6 @@
 """ Utility functions to trait keras models. """
 import keras
+from src.keras.keras_models import simple_unet
 
 
 def get_model(model: str, **kwargs) -> keras.Model:
