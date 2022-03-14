@@ -9,6 +9,7 @@ MODELS_PATH = os.path.join(PAR_DIR, "models")
 SCRIPTS_PATH = os.path.join(PAR_DIR, "scripts")
 
 RAW_DATA_PATH = os.path.join(DATA_PATH, "raw")
+PIPELINE_RESULTS_PATH = os.path.join(DATA_PATH, "results")
 SEGMENTER_DATA_PATH = os.path.join(DATA_PATH, "segmenter")
 
 CLASS_SCRIPTS_PATH = os.path.join(SCRIPTS_PATH, "classification")

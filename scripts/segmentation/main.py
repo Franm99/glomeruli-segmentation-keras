@@ -1,12 +1,14 @@
 import argparse
+import glob
 import os
 import sys
 from os.path import dirname, abspath
 from pathlib import Path
 
 sys.path.append(dirname(dirname(dirname(abspath(__file__)))))
+import src.utils.constants as const
 from src.pipeline import SegmentationPipeline
-from src.utils.misc import browse_file
+from src.utils.misc import browse_file, browse_path
 
 
 def parse_args():
@@ -17,7 +19,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def run_one_slide():
     args = parse_args()
     if not args.slide:
         print("Select slide to process")
@@ -33,5 +35,35 @@ def main():
     prediction.save(output_path)
 
 
+def multiple_slide(src_folder: str, scale: int):
+    th = 0.75
+    slides = glob.glob(src_folder + '/*.tif')
+
+    dest_folder = os.path.join(const.PIPELINE_RESULTS_PATH, os.path.basename(src_folder), f"scale{str(scale)}")
+    if not os.path.isdir(dest_folder):
+        os.makedirs(dest_folder)
+
+    segmentationPipeline = SegmentationPipeline()
+    for slide in slides:
+        slide_basename = os.path.basename(slide)
+        prediction_name = os.path.join(dest_folder, slide_basename.split('.')[0] + f"_mask_s{scale}.png")
+
+        if os.path.isfile(prediction_name):
+            # Mask already exists. Continue with next WSI.
+            continue
+
+        segmentationPipeline.run(slide, th)
+        prediction = segmentationPipeline.get_scaled_prediction(scale=scale)
+        prediction.save(prediction_name)
+
+
+def run_multiple_slide():
+    print("Source folder: ")
+    src_path = browse_path()
+    print(src_path)
+    multiple_slide(src_path, 16)
+
+
 if __name__ == '__main__':
-    main()
+    # run_one_slide()
+    run_multiple_slide()

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-SUMMARY
+[Classic U-Net model](https://github.com/bnsreenu/python_for_microscopists)
 
 RESULTS IMAGES
 
@@ -39,7 +39,7 @@ username:~$ conda activate your_env_name
 (your_env_name) username:~$ pip install -r /path/to/repo/requirements.txt
 ```
 
-<h3 id="openslide"><a href=https://openslide.org/api/python/>OpenSlide for Python</a></h3>
+<h3 id="openslide"><a target=_blank href=https://openslide.org/api/python/>OpenSlide for Python</a></h3>
 
 #### Installation Steps
 
@@ -76,12 +76,13 @@ C:/Users/user> setx OPENSLIDE_PATH "path/to/openslide/bin"
 C:/Users/user> echo %OPENSLIDE_PATH%
 ```
 
-4. Finally, you have to include the following code snippet in those files where you want to use OpenSlide:
+4. Lastly, you have to include the following code snippet in those files where you want to use OpenSlide:
 
 ```python
+import os
 from sys import platform
 
-_dll_path = os.getenv('OPENSLIDE_PATH')  
+_dll_path = os.getenv("OPENSLIDE_PATH")  
 if _dll_path is not None:
     # Python >= 3.8
     with os.add_dll_directory(_dll_path):
@@ -108,13 +109,49 @@ Import OpenSlide to your Python script:
 import openslide
 ```
 
-#### OpenSlide Guide
-
-Check the [OpenSlide API documentation](https://openslide.org/api/python/) for Python.
-
-[hello](#openslide)
-
 ## Project Structure
+
+### data
+
+Datasets used for different tasks (training, test, etc.) should be contained inside this folder.
+
+The following subfolder tree is expected:
+
+```bash
+data/
+├───raw/
+│   └─── # WSI's *.tif files  
+└───segmenter/
+    ├───HE/
+    │   ├───ims/      # Images obtained from WSI's
+    │   ├───gt/masks/ # Groundtruth masks 
+    │   └───xml/      # [Optional] xml files with glomeruli coordinates
+    ├───PAS/...
+    └───PM/...
+```
+
+WSI in `*.tif` format are expected to be inside the `raw/` directory. 3200x3200px images extracted from them will be
+placed in the corresponding staining folder contained in the `segmenter/` directory.
+
+### models
+
+This folder contains pre-trained weights for a Keras U-Net model. The name of this files is expected to follow a certain
+naming format:
+
+```
+<model_name>-<staining>-<resize_ratio>-<date>.hdf5
+```
+
+### scripts
+
+Every executable Python file can be found in this folder. Further details about the main scripts can be found in the
+[How to run](#how-to-run) section.
+
+### src
+
+Source and utility files needed to run the project scripts.
+
+## How to run
 
 ## Results
 
@@ -168,7 +205,7 @@ is C-native, but there exists APIs for MATLAB and Python, for instance. See the 
   not a good practice to load the whole dataset in RAM for training. Look into the Keras documentation for Keras
   [model.fit()](https://www.tensorflow.org/api_docs/python/tf/keras/Model#fit) method to understand how to use
   generators for training. Check also this useful [tutorial](https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly).
-* `unet_model.py`: segmentation model, obtained from [[1]](#1). It implements a basic U-Net architecture,
+* `unet_model.py`: segmentation model, obtained from [[1]](1). It implements a basic U-Net architecture,
   typically used for segmentation tasks, including medical contexts.
 * `mask_generator/`: folder containing files with functionalities for generating or loading masks.
 
@@ -246,7 +283,7 @@ will be saved into this directory._
 
 ## References
 
-<a id="1">[1]</a>
+<a id="ref1">[1]</a>
 Bhattiprolu, Sreenivas.
 Python for microscopists ([GitHub repository](https://github.com/bnsreenu/python_for_microscopists))
 
@@ -254,5 +291,3 @@ Python for microscopists ([GitHub repository](https://github.com/bnsreenu/python
 Daniel Forsberg (2022).
 fordanic/openslide-matlab,
 ([GitHub](https://github.com/fordanic/openslide-matlab)). Retrieved February 1, 2022.
-
-- [Source dataset](https://www.epfl.ch/labs/cvlab/data/data-em/)
