@@ -1,4 +1,10 @@
-""" Enum classes """
+"""
+Author: Fran Moreno
+Contact: fran.moreno.se@gmail.com
+Date: 15/03/2022
+
+Desc: Enum classes
+"""
 from enum import Enum, IntEnum, auto, unique
 from strenum import StrEnum
 

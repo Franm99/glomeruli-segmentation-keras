@@ -1,3 +1,8 @@
+"""
+Author: Fran Moreno
+Contact: fran.moreno.se@gmail.com
+Date: 15/03/2022
+"""
 import keras
 from keras.models import Model
 from keras.layers import Input, Conv2D, MaxPooling2D, concatenate, Conv2DTranspose, Dropout

@@ -1,4 +1,10 @@
-""" Constants to import in other scripts """
+"""
+Author: Fran Moreno
+Contact: fran.moreno.se@gmail.com
+Date: 15/03/2022
+Desc: Constants to import in other scripts
+"""
+
 from src.utils.enums import MaskType, Staining
 
 # TODO

@@ -1,4 +1,8 @@
-""" Utility functions to trait keras models. """
+"""
+Author: Fran Moreno
+Contact: fran.moreno.se@gmail.com
+Date: 15/03/2022
+"""
 import keras
 from src.keras.keras_models import simple_unet
 

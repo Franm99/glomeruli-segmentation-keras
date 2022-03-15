@@ -1,4 +1,10 @@
-""" CONSTANTS FILE """
+"""
+Author: Fran Moreno
+Contact: fran.moreno.se@gmail.com
+Date: 15/03/2022
+
+Desc: CONSTANTS FILE
+"""
 import os
 
 # Paths
