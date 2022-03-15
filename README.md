@@ -170,8 +170,6 @@ Source and utility files needed to run the project scripts.
 - [ ]  Compare different segmentation model architectures to extract conclusions about what works better for
   our case study: Classic U-Net [[1]](#1), [DoubleU-Net](https://arxiv.org/pdf/2006.04868.pdf), [U-Net++,](https://arxiv.org/pdf/1807.10165.pdf) belong others.
 
-## Environment Setup
-
 ## Application stages
 
 1. Renal tissue images use to have huge dimensions, being highly not recommended to directly process them. Cutting up
@@ -193,93 +191,9 @@ Figure 2: Application stages
 is C-native, but there exists APIs for MATLAB and Python, for instance. See the section
 [OpenSlide for Python](#openslide-for-python).
 
-## Project structure
-
-* `workflow.py`: main execution file. It is used to prepare, train and test de segmentation
-  model for a set of configuration parameter values. Output files are saved to the _output/_ directory,
-  in a specific folder named with the execution date and time.
-* `dataset.py`: defines classes to easily treat data.
-* `dataGenerator.py`: include classes defining
-  [Keras Sequential Generators](https://www.tensorflow.org/api_docs/python/tf/keras/utils/Sequence) to iteratively feed
-  data to the network model. When you are working with huge amounts of data (specially, when this data are images), it is
-  not a good practice to load the whole dataset in RAM for training. Look into the Keras documentation for Keras
-  [model.fit()](https://www.tensorflow.org/api_docs/python/tf/keras/Model#fit) method to understand how to use
-  generators for training. Check also this useful [tutorial](https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly).
-* `unet_model.py`: segmentation model, obtained from [[1]](1). It implements a basic U-Net architecture,
-  typically used for segmentation tasks, including medical contexts.
-* `mask_generator/`: folder containing files with functionalities for generating or loading masks.
-
-  * `MaskGenerator.py`: This class is used to create or load masks. Three types or
-    masks have been tested: _Handcrafted_ (see Figure 2) or _synthetic_ masks.
-  * `manual_masks.py`: includes functionalities that were useful for the handcrafted masks generation,
-    as marking the coordinates where a glomerulus can be found, or border filling, so just using a renal
-    tissue patch where the glomeruli borders are marked with green color, a binary mask is automatically
-    generated.
-
 ![handcrafted](ims/handcrafted.png)
 Figure 2: Obtaining handcrafted masks. The first step was to remark the limits of each glomerulus with an easily
 perceptible color. Next, using the `manual_masks.py` script, binary masks are obtained.
-
-* `utils.py`: includes general purpose functions.
-* `parameters.py`: Set of parameters to modify during the model testing:
-
-  - `DATASET_PATH`: directory where the dataset can be founded in disk (*).
-  - `PATCH_SIZE`: by default, (3200, 3200)
-  - `UNET_INPUT_SIZE`: by default, (256, 256)
-  - `RESIZE_RATIO`: Input images are parititoned into sub-patches. To avoid using directly the
-    input dimension, a resize ratio is stablished.
-  - `STAINING`: Image we are using can be classified by different stainings used for the renal tissues:
-    HE, PAS or PM. This parameter varies the staining used for the model training. Allowed values: 'HE' ,'PAS', 'PM', 'ALL'
-
-_Model parameters_
-
-- LEARNING_RATE
-- MONITORED_METRIC: see [Keras metrics](https://keras.io/api/metrics/) and select your preferred one. For segmentation tasks, IoU has been proved
-  to be the most indicated
-
-_Mask Generator_
-
-- MASK_TYPE: uses the MaskType Enum class to select from three possible types: HANDCRADTED, CIRCULAR, BBOX
-- MASK_SIZE: when synthetic circular masks are created, you need to specify a desired radius for each
-  glomeruli mask. If None, this parameter tells that the radius will vary based on the glomerulus class specified
-  at the corresponding xml file.
-- APPLY_SIMPLEX: [Simplex algorithm](https://www.sciencedirect.com/topics/computer-science/simplex-algorithm#:~:text=The%20simplex%20algorithm%2C%20developed%20by,that%20satisfies%20all%20the%20constraints.) can be used to delimit the radius of a set of circles contained in
-  the same image so no one will ve overlapped.
-
-_Training parameters and hyper-parameters_
-
-- TRAINVAL_TEST_SPLIT_RATE
-- TRAIN_SIZE
-- TRAINVAL_TEST_RAND_STATE: [train_test_split sklearn method](https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.train_test_split.html)
-  uses shuffle to modify the input data order. Specifiyng a random state lets the programmer to maintain the same random order for
-  every test, so it is easier to understand the results obtained.
-- TRAIN_VAL_RAND_STATE
-- MIN_LEARNING_RATE: just used when ReduceLROnPleteau Keras callback is used.
-- PREDICTION_THRESHOLD: The U-Net model generates a binary-map with values [0..1] indicating with
-  the highest values where the desired object can be found. This prediction threshold is used to obtain
-  a binary mask directly from this bit map.
-- BATCH_SIZE
-- EPOCHS
-
-_Model callbacks_
-
-- ES_PATIENCE: Early Stopping epochs patience
-- REDUCELR_PATIENCE: ReduceLROnPlateau epochs patience
-- ACTIVATE_REDUCELR: Activate [ReduceLROnPlateau](https://keras.io/api/callbacks/reduce_lr_on_plateau/) callback function
-
-_(*) The dataset path should strictly maintain the following directory tree:_
-
-_gt/ - Every time a new mask type or mask configurations are used, a new subdirectory
-will be generated inside this directory, containing the groundtruth masks._
-
-_ims/ - Total set of renal tissue patches._
-
-_xml/ - Total set of xml files related to the renal tissue patches. This xml files
-contain information about the exact position and class of most glomeruli._
-
-_train_val/ - The segmentation model just works for an specific input size.
-Images and masks will be partitioned into sub-patches, and this sub-patches
-will be saved into this directory._
 
 ## References
 
